@@ -60,7 +60,7 @@ from ui.home import render_home
 from ui.firstlight import render_firstlight
 from ui.loading import render_intro_loader
 from ui.navigation import render_sidebar
-from ui.results import render_threat_analysis, render_verification_sources, render_evidence_ledger, render_evidence_review, render_investigation_timeline
+from ui.results import render_threat_analysis, render_verification_sources, render_evidence_ledger, render_evidence_review, render_investigation_timeline, render_threat_intelligence
 from evidence_engine import extract_deterministic_evidence
 from threat_intel import enrich_submitted_url
 from ui.history import render_history
@@ -540,46 +540,6 @@ def render_result(result):
             f'<div class="conclusion-card">{conclusion}</div></section>',
             unsafe_allow_html=True,
         )
-
-
-def render_threat_intelligence(enrichment):
-    """Render external reputation records as distinct, attributed observations."""
-    enrichment = enrichment if isinstance(enrichment, dict) else {}
-    records = enrichment.get("results", [])
-    notes = enrichment.get("provider_notes", [])
-    if not enrichment.get("queried") and not records:
-        return
-    st.markdown("#### External threat intelligence")
-    st.caption("Optional provider observations only. A missing match does not mean safe; reputation is not a verdict.")
-    if records:
-        for record in records:
-            provider = html.escape(safe_text(record.get("provider"), "Provider"))
-            status = html.escape(safe_text(record.get("status"), "unknown"))
-            indicator = html.escape(safe_text(record.get("indicator"), ""))
-            st.markdown(f"**{provider}** · {status} · {indicator}")
-            if record.get("provider") == "AbuseIPDB":
-                st.write(
-                    f"Abuse confidence: {record.get('abuse_confidence_score', 0)}/100 · "
-                    f"Reports: {record.get('total_reports', 0)} · "
-                    f"Country: {safe_text(record.get('country_code'), 'unknown') or 'unknown'}"
-                )
-            elif record.get("provider") == "URLhaus":
-                st.write(
-                    f"Threat: {safe_text(record.get('threat'), 'unknown')} · "
-                    f"URL status: {safe_text(record.get('url_status'), 'unknown')} · "
-                    f"Added: {safe_text(record.get('date_added'), 'unknown') or 'unknown'}"
-                )
-                tags = record.get("tags", [])
-                if tags:
-                    st.caption("Tags: " + ", ".join(safe_text(tag) for tag in tags))
-            st.caption(safe_text(record.get("note")))
-            reference = safe_text(record.get("reference"))
-            if reference.startswith("https://"):
-                st.markdown(f"[Provider reference]({reference})")
-    else:
-        st.info("No provider results were returned.")
-    for note in notes:
-        st.caption(safe_text(note))
 
 
 def add_history(result, mode):
