@@ -15,6 +15,8 @@ type Analysis = {
   deterministic_signals: string[];
   model: string;
   notice: string;
+  threat_intel?: { status: string; source: string; detail: string; reference?: string };
+  ip_threat_intel?: { status: string; source: string; detail: string; reference?: string };
 };
 
 export default function Home() {
@@ -22,6 +24,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Analysis | null>(null);
+  const [shareWithThreatIntel, setShareWithThreatIntel] = useState(false);
+  const [shareIpWithThreatIntel, setShareIpWithThreatIntel] = useState(false);
 
   async function analyze() {
     setError('');
@@ -35,7 +39,7 @@ export default function Home() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ input: input.trim() })
+        body: JSON.stringify({ input: input.trim(), shareWithThreatIntel, shareIpWithThreatIntel })
       });
       const contentType = response.headers.get('content-type') || '';
       const data: unknown = contentType.includes('application/json')
@@ -64,7 +68,9 @@ export default function Home() {
         !Array.isArray(candidate.limitations) ||
         !Array.isArray(candidate.deterministic_signals) ||
         typeof candidate.model !== 'string' ||
-        typeof candidate.notice !== 'string'
+        typeof candidate.notice !== 'string' ||
+        (candidate.threat_intel !== undefined && (!candidate.threat_intel || typeof candidate.threat_intel !== 'object' || typeof candidate.threat_intel.status !== 'string' || typeof candidate.threat_intel.detail !== 'string')) ||
+        (candidate.ip_threat_intel !== undefined && (!candidate.ip_threat_intel || typeof candidate.ip_threat_intel !== 'object' || typeof candidate.ip_threat_intel.status !== 'string' || typeof candidate.ip_threat_intel.detail !== 'string'))
       ) {
         throw new Error('The analysis service returned an incomplete result. Please retry.');
       }
@@ -108,14 +114,14 @@ export default function Home() {
           <div className="workspace-grid">
             <article className="workspace-card"><div className="workspace-icon">⌕</div><h3>Investigate content</h3><p>Analyze a suspicious URL or message with AI-assisted triage and deterministic signals.</p><a className="text-link" href="/investigate">Open investigation →</a></article>
             <article className="workspace-card"><div className="workspace-icon">✳</div><h3>FIRSTLIGHT case lab</h3><p>Explore a guided synthetic case, evidence integrity, timelines and response decisions.</p><a className="text-link" href="/firstlight">Open case lab →</a></article>
-            <article className="workspace-card"><div className="workspace-icon">▤</div><h3>Evidence & reports</h3><p>Review analysis results and export a report from your current session.</p><a className="text-link" href="/reports">Open reports →</a></article>
+            <article className="workspace-card"><div className="workspace-icon">▤</div><h3>Evidence & reports</h3><p>Draft and export your own investigation review notes.</p><a className="text-link" href="/reports">Open reports →</a></article>
             <article className="workspace-card"><div className="workspace-icon">◎</div><h3>Security learning</h3><p>Practice identifying social engineering signals with safe, educational examples.</p><a className="text-link" href="/learn">Open learning hub →</a></article>
           </div>
         </section>
 
         <section className="tools-section">
           <div className="section-title"><div><div className="eyebrow">SATARK TOOLKIT</div><h2>One workspace. Different kinds of evidence.</h2></div><p>Choose a focused workflow. Tools that are not yet ported into Next.js open the existing full SATARK application.</p></div>
-          <div className="tool-grid">
+          <details className="tools-disclosure"><summary><span><strong>Browse all eight tools</strong><small>Includes links to legacy workflows and tools in this workspace</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary><div className="tool-grid">
             {[
               ['01','Text & message triage','Spot pressure tactics, impersonation cues and risky requests.','/investigate','OPEN ANALYSIS'],
               ['02','URL review','Review a URL as text without automatically visiting it.','/investigate','OPEN ANALYSIS'],
@@ -128,6 +134,7 @@ export default function Home() {
             ].map(([number,title,description,href,action]) => <article className="tool-card" key={number}><div className="tool-card-top"><span>{number}</span><span className="tool-arrow">↗</span></div><h3>{title}</h3><p>{description}</p><a className="text-link" href={href} target={href.startsWith('http')?'_blank':undefined} rel={href.startsWith('http')?'noreferrer':undefined}>{action} →</a></article>)}
           </div>
           <div className="tool-boundary"><span>i</span><p><strong>Feature availability:</strong> text/URL triage and the interactive FIRSTLIGHT training workflow run in this Next.js workspace. The image, QR, PDF, video, and extended history tools still run in the existing Streamlit application; they are linked here rather than falsely presented as native Next.js features.</p></div>
+          </details>
         </section>
 
         <section className="investigation" id="investigate">
@@ -136,6 +143,8 @@ export default function Home() {
             <h3>New investigation</h3>
             <label htmlFor="content">Suspicious URL or message</label>
             <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
+             <label className="intel-consent"><input type="checkbox" checked={shareWithThreatIntel} onChange={event => setShareWithThreatIntel(event.target.checked)} /> Also check the extracted URL against URLhaus. The full extracted URL, including its path and query string, is shared with that external reputation service; do not submit private or signed URLs. This is optional and may be disabled by the server.</label>
+            <label className="intel-consent"><input type="checkbox" checked={shareIpWithThreatIntel} onChange={event => setShareIpWithThreatIntel(event.target.checked)} /> Also check a literal IP address against AbuseIPDB. The extracted IP is shared with that external service if enabled on the server; domains and arbitrary text are not queried. This is optional.</label>
             <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy || !input.trim()} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
             {error && <div className="result error" role="alert">{error}</div>}
             {result && <div className="analysis-result" role="status">
@@ -145,6 +154,8 @@ export default function Home() {
               <h4>AI-identified indicators</h4><ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
               <h4>Recommended next steps</h4><ul>{result.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
               {result.limitations.length > 0 && <><h4>Limitations</h4><ul>{result.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
+               {result.threat_intel && <div className="threat-intel-result"><h4>URL reputation · {result.threat_intel.source}</h4><p><strong>{result.threat_intel.status.replaceAll("_", " ")}</strong> — {result.threat_intel.detail}</p>{result.threat_intel.reference && <a href={result.threat_intel.reference} target="_blank" rel="noreferrer">Open URLhaus reference ↗</a>}</div>}
+              {result.ip_threat_intel && <div className="threat-intel-result"><h4>IP reputation · {result.ip_threat_intel.source}</h4><p><strong>{result.ip_threat_intel.status.replaceAll("_", " ")}</strong> — {result.ip_threat_intel.detail}</p>{result.ip_threat_intel.reference && <a href={result.ip_threat_intel.reference} target="_blank" rel="noreferrer">Open AbuseIPDB reference ↗</a>}</div>}
               <small>{result.notice} · Model: {result.model}</small>
             </div>}
           </div>

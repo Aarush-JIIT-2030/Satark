@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isIP } from 'node:net';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,114 @@ function isRateLimited(request: Request) {
   }
   entry.count += 1;
   return entry.count > MAX_REQUESTS_PER_WINDOW;
+}
+
+type IpIntelResult = {
+  status: 'not_requested' | 'disabled' | 'unavailable' | 'no_match' | 'match';
+  source: 'AbuseIPDB';
+  detail: string;
+  reference?: string;
+};
+
+type ThreatIntelResult = {
+  status: 'not_requested' | 'disabled' | 'unavailable' | 'no_match' | 'match';
+  source: 'URLhaus';
+  detail: string;
+  reference?: string;
+};
+
+function extractFirstHttpUrl(input: string): string | null {
+  const candidate = input.match(/https?:\/\/[^\s<>"']{1,2048}/i)?.[0];
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate.replace(/[),.;!?]+$/, ''));
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password) return null;
+    return parsed.toString().slice(0, 2048);
+  } catch {
+    return null;
+  }
+}
+
+function extractFirstIp(input: string): string | null {
+  // Match address-shaped tokens only; isIP performs the actual IPv4/IPv6 validation.
+  const candidates = input.match(/(?:[0-9]{1,3}[.]){3}[0-9]{1,3}|[0-9a-fA-F:]{2,39}/g) || [];
+  for (const candidate of candidates) {
+    if (isIP(candidate)) return candidate;
+  }
+  return null;
+}
+
+async function checkAbuseIpDb(input: string, requested: boolean): Promise<IpIntelResult> {
+  const base = { source: 'AbuseIPDB' as const };
+  if (!requested) return { ...base, status: 'not_requested', detail: 'External IP reputation lookup was not requested.' };
+  if (process.env.SATARK_ENABLE_ABUSEIPDB !== 'true') return { ...base, status: 'disabled', detail: 'IP reputation lookup is disabled by the server.' };
+  const ip = extractFirstIp(input);
+  if (!ip) return { ...base, status: 'unavailable', detail: 'No valid IP literal could be extracted. Domains and arbitrary text are not queried.' };
+  const key = process.env.ABUSEIPDB_API_KEY;
+  if (!key) return { ...base, status: 'unavailable', detail: 'AbuseIPDB is not configured on the server.' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const url = new URL('https://api.abuseipdb.com/api/v2/check');
+    url.searchParams.set('ipAddress', ip);
+    url.searchParams.set('maxAgeInDays', '90');
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Key: key, Accept: 'application/json' },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) return { ...base, status: 'unavailable', detail: 'AbuseIPDB could not complete the lookup.' };
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== 'object' || !('data' in payload) || !payload.data || typeof payload.data !== 'object') {
+      return { ...base, status: 'unavailable', detail: 'AbuseIPDB returned an unreadable response.' };
+    }
+    const data = payload.data as Record<string, unknown>;
+    const score = typeof data.abuseConfidenceScore === 'number' ? data.abuseConfidenceScore : null;
+    const reports = typeof data.totalReports === 'number' ? data.totalReports : null;
+    if (score === null) return { ...base, status: 'unavailable', detail: 'AbuseIPDB returned an incomplete response.' };
+    const detail = 'Abuse confidence score: ' + score + '/100' + (reports === null ? '' : '; reports: ' + reports) + '. A low score is not proof of safety.';
+    return { ...base, status: score > 0 ? 'match' : 'no_match', detail, reference: 'https://www.abuseipdb.com/check/' + encodeURIComponent(ip) };
+  } catch {
+    return { ...base, status: 'unavailable', detail: 'AbuseIPDB lookup failed or timed out.' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkUrlhaus(input: string, requested: boolean): Promise<ThreatIntelResult> {
+  const base = { source: 'URLhaus' as const };
+  if (!requested) return { ...base, status: 'not_requested', detail: 'External URL reputation lookup was not requested.' };
+  if (process.env.SATARK_ENABLE_THREAT_INTEL !== 'true') return { ...base, status: 'disabled', detail: 'URL reputation lookup is disabled by the server.' };
+  const url = extractFirstHttpUrl(input);
+  if (!url) return { ...base, status: 'unavailable', detail: 'No valid HTTP(S) URL could be extracted for reputation lookup.' };
+  const authKey = process.env.URLHAUS_AUTH_KEY;
+  if (!authKey) return { ...base, status: 'unavailable', detail: 'URLhaus is not configured on the server.' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch('https://urlhaus-api.abuse.ch/v1/url/', {
+      method: 'POST',
+      headers: { 'Auth-Key': authKey, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({ url }),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) return { ...base, status: 'unavailable', detail: 'URLhaus could not complete the lookup.' };
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== 'object') return { ...base, status: 'unavailable', detail: 'URLhaus returned an unreadable response.' };
+    const data = payload as Record<string, unknown>;
+    if (data.query_status === 'no_results') return { ...base, status: 'no_match', detail: 'URLhaus returned no listing. This does not establish that the URL is safe.' };
+    if (data.query_status !== 'ok') return { ...base, status: 'unavailable', detail: 'URLhaus returned an inconclusive result.' };
+    const reference = typeof data.urlhaus_reference === 'string' ? data.urlhaus_reference.slice(0, 500) : undefined;
+    const threat = typeof data.threat === 'string' ? data.threat.slice(0, 120) : 'Listed URL';
+    const tags = Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 5) : [];
+    return { ...base, status: 'match', detail: tags.length ? threat + '; tags: ' + tags.join(', ') : threat, ...(reference ? { reference } : {}) };
+  } catch {
+    return { ...base, status: 'unavailable', detail: 'URLhaus lookup failed or timed out.' };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function error(message: string, status: number) {
@@ -98,6 +207,16 @@ export async function POST(request: Request) {
     return error('Input must be 12,000 characters or fewer.', 413);
   }
 
+  let shareWithThreatIntel = false;
+  let shareIpWithThreatIntel = false;
+  try {
+    const parsedBody = JSON.parse(bodyText) as Record<string, unknown>;
+    shareWithThreatIntel = parsedBody.shareWithThreatIntel === true;
+    shareIpWithThreatIntel = parsedBody.shareIpWithThreatIntel === true;
+  } catch {
+    // Fail closed: external reputation sharing stays disabled.
+  }
+
   const key = process.env.GROQ_API_KEY;
   if (!key) {
     return error('GROQ_API_KEY is missing from this Vercel project.', 503);
@@ -161,6 +280,9 @@ export async function POST(request: Request) {
       ['URL present', /https?:\/\/|www\./i],
     ];
 
+    const threatIntel = await checkUrlhaus(input, shareWithThreatIntel);
+    const ipThreatIntel = await checkAbuseIpDb(input, shareIpWithThreatIntel);
+
     return NextResponse.json({
       threat_category: category,
       risk_score: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 50,
@@ -172,7 +294,9 @@ export async function POST(request: Request) {
       limitations: stringList(result.limitations),
       deterministic_signals: rules.filter(([, pattern]) => pattern.test(input)).map(([label]) => label),
       model: 'openai/gpt-oss-120b',
-      notice: 'AI-assisted triage only. No URL was fetched and no file was executed.',
+      threat_intel: threatIntel,
+      ip_threat_intel: ipThreatIntel,
+      notice: 'AI-assisted triage only. SATARK does not open URLs or execute files. If opted in and enabled by the server, the extracted URL is sent to URLhaus and/or the extracted IP literal is sent to AbuseIPDB for reputation lookup.',
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return error('Analysis failed. Check provider availability and retry.', 502);
