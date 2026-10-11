@@ -62,6 +62,7 @@ from ui.loading import render_intro_loader
 from ui.navigation import render_sidebar
 from ui.results import render_threat_analysis, render_verification_sources, render_evidence_ledger, render_evidence_review, render_investigation_timeline
 from evidence_engine import extract_deterministic_evidence
+from threat_intel import enrich_submitted_url
 from ui.history import render_history
 from ui.learning import render_academy, render_classroom
 
@@ -530,6 +531,7 @@ def render_result(result):
                 unsafe_allow_html=True,
             )
         render_threat_analysis(result, THREAT_CHECKS)
+        render_threat_intelligence(result.get("threat_intelligence", {}))
         render_verification_sources(result, OFFICIAL_VERIFICATION_SOURCES)
 
         conclusion = html.escape(build_final_conclusion(result))
@@ -538,6 +540,46 @@ def render_result(result):
             f'<div class="conclusion-card">{conclusion}</div></section>',
             unsafe_allow_html=True,
         )
+
+
+def render_threat_intelligence(enrichment):
+    """Render external reputation records as distinct, attributed observations."""
+    enrichment = enrichment if isinstance(enrichment, dict) else {}
+    records = enrichment.get("results", [])
+    notes = enrichment.get("provider_notes", [])
+    if not enrichment.get("queried") and not records:
+        return
+    st.markdown("#### External threat intelligence")
+    st.caption("Optional provider observations only. A missing match does not mean safe; reputation is not a verdict.")
+    if records:
+        for record in records:
+            provider = html.escape(safe_text(record.get("provider"), "Provider"))
+            status = html.escape(safe_text(record.get("status"), "unknown"))
+            indicator = html.escape(safe_text(record.get("indicator"), ""))
+            st.markdown(f"**{provider}** · {status} · {indicator}")
+            if record.get("provider") == "AbuseIPDB":
+                st.write(
+                    f"Abuse confidence: {record.get('abuse_confidence_score', 0)}/100 · "
+                    f"Reports: {record.get('total_reports', 0)} · "
+                    f"Country: {safe_text(record.get('country_code'), 'unknown') or 'unknown'}"
+                )
+            elif record.get("provider") == "URLhaus":
+                st.write(
+                    f"Threat: {safe_text(record.get('threat'), 'unknown')} · "
+                    f"URL status: {safe_text(record.get('url_status'), 'unknown')} · "
+                    f"Added: {safe_text(record.get('date_added'), 'unknown') or 'unknown'}"
+                )
+                tags = record.get("tags", [])
+                if tags:
+                    st.caption("Tags: " + ", ".join(safe_text(tag) for tag in tags))
+            st.caption(safe_text(record.get("note")))
+            reference = safe_text(record.get("reference"))
+            if reference.startswith("https://"):
+                st.markdown(f"[Provider reference]({reference})")
+    else:
+        st.info("No provider results were returned.")
+    for note in notes:
+        st.caption(safe_text(note))
 
 
 def add_history(result, mode):
@@ -860,6 +902,12 @@ elif st.session_state.page == "Analyze":
             placeholder="https://example.com",
             type="url",
             key="url_input"
+        )
+        st.checkbox(
+            "Check with configured threat-intelligence providers",
+            value=False,
+            key="threat_intel_opt_in",
+            help="When enabled, the submitted URL is sent to URLhaus. A public IPv4 literal is also sent to AbuseIPDB. Use only URLs you are comfortable sharing with these providers.",
         )
 
 
@@ -1275,6 +1323,28 @@ elif st.session_state.page == "Analyze":
                     # text-only local rules independently verified visual claims.
                     deterministic_evidence = []
 
+                # External reputation is user-opt-in and cannot override local/AI analysis.
+                threat_intelligence = {"results": [], "provider_notes": [], "queried": False}
+                if mode == "URL" and st.session_state.get("threat_intel_opt_in", False):
+                    def _server_secret(name):
+                        value = os.getenv(name, "")
+                        try:
+                            if not value and name in st.secrets:
+                                value = str(st.secrets[name])
+                        except Exception:
+                            pass
+                        return value.strip()
+
+                    threat_intelligence = enrich_submitted_url(
+                        content,
+                        urlhaus_key=_server_secret("URLHAUS_AUTH_KEY"),
+                        abuseipdb_key=_server_secret("ABUSEIPDB_API_KEY"),
+                    )
+                evidence_context_ti = json.dumps(
+                    threat_intelligence.get("results", []),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
                 evidence_context = json.dumps(
                     deterministic_evidence,
                     ensure_ascii=False,
@@ -1291,6 +1361,7 @@ elif st.session_state.page == "Analyze":
                     f"Submitted content and extracted content:\n{prepared}\n\n"
                     "Independent local rule observations (JSON; observations, not verdicts):\n"
                     f"{evidence_context}\n\n"
+                    f"Optional external threat-intelligence results (JSON; corroborating signals only):\n{evidence_context_ti}\n\n"
                     "Use these observations as a separate evidence source. Do not claim that "
                     "an observation proves fraud. Do not invent corroboration when the list is "
                     "empty. Clearly distinguish direct observations, inference, and unknowns. "
@@ -1315,6 +1386,7 @@ elif st.session_state.page == "Analyze":
                 # Preserve the independent evidence and scanner type in the report.
                 result["analysis_mode"] = mode
                 result["deterministic_evidence"] = deterministic_evidence
+                result["threat_intelligence"] = threat_intelligence
 
 
             # ======================================================
