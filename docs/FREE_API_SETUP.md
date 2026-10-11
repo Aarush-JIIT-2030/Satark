@@ -42,9 +42,13 @@ There is no generic free API key that can safely isolate arbitrary computers, re
 
 1. Keep deterministic FIRSTLIGHT scenario and simulated response controls working without any API key.
 2. Use Groq for optional AI explanation within the current free quota.
-3. Add AbuseIPDB IP reputation and URLhaus URL intelligence as optional enrichment providers, with timeouts, rate-limit handling, attribution and graceful offline fallback.
+3. URL analysis now has an explicit opt-in enrichment checkbox. When enabled, SATARK queries URLhaus for the submitted HTTP(S) URL and checks public IPv4 literals in that URL with AbuseIPDB. Lookups have finite timeouts, rate-limit/credential error handling, provider attribution and graceful per-provider fallback. Domain names are not resolved for AbuseIPDB, so a normal hostname may produce a URLhaus result but no AbuseIPDB IP result.
 4. For a real containment demo at zero licensing cost, use an isolated local lab with open-source tooling such as Wazuh and disposable virtual machines. Do not expose a privileged agent or control API to the public internet. Actual endpoint isolation still requires an agent/integration running on the endpoint and explicit operator authorization.
 5. Keep `SATARK_ENABLE_LIVE_RESPONSE=false` unless a dedicated, authorized test lab is configured. Never enter real API keys in GitHub issues, chat, source code, or frontend environment variables.
+
+## Enable threat-intelligence lookups in the app
+
+Open **Investigate → URL**, enter a URL, and tick **Check with configured threat-intelligence providers** before analysis. This is off by default because the submitted URL may be shared with URLhaus and a public IPv4 literal may be shared with AbuseIPDB. Keys are read from server-side environment variables or Streamlit secrets. If either key is missing or a provider is unavailable, SATARK reports that provider's status without failing the main analysis. A no-match result is not a safety verdict.
 
 ## Environment variable checklist
 
