@@ -19,7 +19,7 @@ SATARK Sentinel is a security-awareness and incident-investigation prototype bui
 
 ---
 
-> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. FIRSTLIGHT uses synthetic incident data and simulated response actions. Its session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
+> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. FIRSTLIGHT's demo incident is synthetic. Optional Microsoft Defender/Entra response adapters are opt-in, require tenant credentials and explicit target-bound confirmation, and have not been live-validated or connected to the current simulated approval UI. The session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
 
 ## Contents
 
