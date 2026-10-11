@@ -1,5 +1,7 @@
 'use client';
 
+import SiteHeader from './site-header';
+
 import { useState } from 'react';
 
 type Analysis = {
@@ -75,15 +77,9 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <header className="topbar">
-        <a className="brand" href="/"><span className="brand-mark">S</span><span>SATARK<span style={{ color: 'var(--lime)' }}>.</span></span></a>
-        <nav className="nav-links" aria-label="Main navigation">
-          <a href="/investigate">Investigate</a><a href="/firstlight">FIRSTLIGHT</a><a href="/reports">Reports</a><a href="/learn">Learn</a>
-        </nav>
-        <div className="status">● SECURITY WORKSPACE</div>
-      </header>
+      <SiteHeader status />
 
-      <div className="container">
+      <div className="container" id="main-content" tabIndex={-1}>
         <section className="hero">
           <div>
             <div className="eyebrow">✳ DIGITAL THREAT INVESTIGATION</div>
@@ -93,7 +89,7 @@ export default function Home() {
           </div>
           <div className="signal-card">
             <div className="card-head"><span>INVESTIGATION SNAPSHOT</span><span className="pill">SAMPLE DATA</span></div>
-            <div className="score-row"><div className="score">4/5</div><div className="score-meta"><strong>Evidence signals reviewed</strong><span>Illustrative training case · not a live scan</span></div></div>
+            <div className="score-row"><div className="score">3</div><div className="score-meta"><strong>Signal groups in this sample</strong><span>Illustrative training case · not a live scan</span></div></div>
             <div className="evidence-list">
               {[
                 ['↗', 'Source context', 'Review origin and destination'],
@@ -136,8 +132,8 @@ export default function Home() {
           <div className="form-panel">
             <h3>New investigation</h3>
             <label htmlFor="content">Suspicious URL or message</label>
-            <textarea id="content" value={input} onChange={event => setInput(event.target.value)} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
-            <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
+            <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
+            <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy || !input.trim()} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
             {error && <div className="result error" role="alert">{error}</div>}
             {result && <div className="analysis-result" role="status">
               <div className="result-top"><span className="pill">{result.threat_category}</span><strong>Risk signal: {result.risk_score}/100</strong></div>
