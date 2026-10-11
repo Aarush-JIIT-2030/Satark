@@ -6,18 +6,21 @@ This is an execution record. A missing result is unknown, not a pass. Repository
 
 - Canonical repository: `kaustubhdua/Satark`
 - Candidate branch: `main`
-- Approved merge commit: `edfb72c7f5b8654ef4ed76de4a632c59438e220e`
-- UI change PR: [#25](https://github.com/kaustubhdua/Satark/pull/25) (merged; merge commit `edfb72c7f5b8654ef4ed76de4a632c59438e220e`)
+- Latest hardening merge commit: `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1` (PR #32; API request bounds, FIRSTLIGHT import validation, frontend CI gate)
+- Earlier UI baseline merge commit: `30fcffffb5fc9a0d395310ff2a121db496bf695a` (PR #28)
+- UI changes: [PR #25](https://github.com/kaustubhdua/Satark/pull/25) and [PR #28](https://github.com/kaustubhdua/Satark/pull/28), merged
+- Latest hardening: [PR #32](https://github.com/kaustubhdua/Satark/pull/32), merged
 - Deployment repository inspected read-only: [harshilgupta926/Satark](https://github.com/harshilgupta926/Satark) — older home/FIRSTLIGHT labels remain on its `main` branch
 - CI run on exact PR head `ed44973b458916cd7a9d61cd8b719d65c90f722e`: [run #842](https://github.com/kaustubhdua/Satark/actions/runs/38095332214) — PASS
 - CodeQL run on exact PR head `ed44973b458916cd7a9d61cd8b719d65c90f722e`: [run #311](https://github.com/kaustubhdua/Satark/actions/runs/38095332252) — PASS
 - Public demo URL: https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/
 - Hosting dashboard repository / branch / deployed SHA: NOT VERIFIED (dashboard access/revision evidence unavailable)
+- Latest hardening checks on `51025b32c1daabfc44b8e113df5fbd213d5210fc`: [Web CI #7](https://github.com/kaustubhdua/Satark/actions/runs/38100733705) PASS; [Python CI #914](https://github.com/kaustubhdua/Satark/actions/runs/38100733730) PASS; [CodeQL #338](https://github.com/kaustubhdua/Satark/actions/runs/38100733749) PASS. These checks ran on the PR head before merge; merged commit checks and production deployment remain separate gates.
 - Tester / timestamp: automated repository checks inspected 2026-10-11; live sign-off incomplete
 
 ## Automated release-candidate result
 
-The exact PR head passed CI and CodeQL before merge. CI included dependency consistency, Python compilation, unit tests, desktop/mobile browser smoke/layout tests, and project/style/asset checks. These results apply to the PR head above; verify the merged commit's own workflow state separately when available.
+The PR #32 head `51025b32c1daabfc44b8e113df5fbd213d5210fc` passed Web CI (TypeScript check and Next.js production build), Python CI (unit tests and Streamlit browser smoke/layout checks), and CodeQL before merge. The merge commit is `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1`. Verify the merged commit's own workflow state separately. No reproducible `web/package-lock.json` is committed yet, and no live Groq request was run.
 
 ## P0 — live demonstration smoke test
 
@@ -68,9 +71,9 @@ Not a production approval. Before confidential or multi-tenant use, complete aut
 
 ## Sign-off
 
-- Final status: **BLOCKED — current live UI copy matches the updated product design, but deployed SHA identity and full live smoke remain unverified; deployment write access is unavailable from this connection**
-- Candidate SHA: `edfb72c7f5b8654ef4ed76de4a632c59438e220e`
-- Outstanding blockers: verify exact deployed SHA and configured host branch, run full live interactive workflows, perform authorized provider and adversarial tests, and review host controls/privacy. GitHub write access to `harshilgupta926/Satark` is unavailable to this integration.
+- Final status: **BLOCKED — repository hardening is merged and its PR-head CI/CodeQL checks passed, but production deployment SHA identity and full live smoke remain unverified; deployment write access is unavailable from this connection**
+- Candidate SHA: `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1`
+- Outstanding blockers: integrate/review overlapping UI PRs #29–#31 safely; add and verify a reproducible frontend lockfile and regression tests; verify exact deployed SHA and configured host branch; run full live interactive workflows; perform authorized provider and adversarial tests; and review host controls/privacy. GitHub write access to `harshilgupta926/Satark` is unavailable to this integration.
 - Accepted residual risks / owner: not yet assigned
 - Rollback tested: NO / NOT VERIFIED
 - Reviewer: automated repository review; human deployment owner sign-off pending
