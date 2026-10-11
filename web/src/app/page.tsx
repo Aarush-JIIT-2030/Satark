@@ -34,9 +34,38 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ input: input.trim() })
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Analysis failed. Please retry.');
-      setResult(data as Analysis);
+      const contentType = response.headers.get('content-type') || '';
+      const data: unknown = contentType.includes('application/json')
+        ? await response.json()
+        : null;
+      if (!response.ok) {
+        const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : response.status === 429
+            ? 'Too many requests. Wait a minute and retry.'
+            : response.status >= 500
+              ? 'The analysis service is temporarily unavailable. Please retry.'
+              : 'Analysis failed. Please check your input and retry.';
+        throw new Error(message);
+      }
+      if (!data || typeof data !== 'object') {
+        throw new Error('The analysis service returned an unreadable response. Please retry.');
+      }
+      const candidate = data as Partial<Analysis>;
+      if (
+        typeof candidate.threat_category !== 'string' ||
+        typeof candidate.risk_score !== 'number' ||
+        typeof candidate.summary !== 'string' ||
+        !Array.isArray(candidate.key_indicators) ||
+        !Array.isArray(candidate.recommendations) ||
+        !Array.isArray(candidate.limitations) ||
+        !Array.isArray(candidate.deterministic_signals) ||
+        typeof candidate.model !== 'string' ||
+        typeof candidate.notice !== 'string'
+      ) {
+        throw new Error('The analysis service returned an incomplete result. Please retry.');
+      }
+      setResult(candidate as Analysis);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not complete analysis.');
     } finally {
@@ -107,8 +136,8 @@ export default function Home() {
           <div className="form-panel">
             <h3>New investigation</h3>
             <label htmlFor="content">Suspicious URL or message</label>
-            <textarea id="content" value={input} onChange={event => setInput(event.target.value)} placeholder="Paste a suspicious URL or message here…" maxLength={12000} />
-            <div className="form-bottom"><span className="hint">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
+            <textarea id="content" value={input} onChange={event => setInput(event.target.value)} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
+            <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
             {error && <div className="result error" role="alert">{error}</div>}
             {result && <div className="analysis-result" role="status">
               <div className="result-top"><span className="pill">{result.threat_category}</span><strong>Risk signal: {result.risk_score}/100</strong></div>
