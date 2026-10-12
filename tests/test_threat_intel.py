@@ -1,5 +1,6 @@
 """Unit tests for optional threat-intelligence lookups; all network calls are mocked."""
 import unittest
+from urllib.parse import parse_qs
 from unittest.mock import patch
 
 from threat_intel import (
@@ -28,6 +29,24 @@ class ThreatIntelTests(unittest.TestCase):
         self.assertEqual(result["status"], "no_match")
         self.assertIn("does not prove", result["note"])
         mocked.assert_called_once()
+
+    @patch("threat_intel._request", return_value={"query_status": "no_results"})
+    def test_urlhaus_removes_query_and_fragment_before_external_sharing(self, mocked):
+        result = lookup_urlhaus(
+            "https://example.com/private-path?token=secret&email=user%40example.com#session",
+            "test-key",
+        )
+        sent_body = mocked.call_args.kwargs["data"].decode("utf-8")
+        self.assertEqual(parse_qs(sent_body)["url"], ["https://example.com/private-path"])
+        self.assertEqual(result["indicator"], "https://example.com/private-path")
+        self.assertNotIn("secret", sent_body)
+        self.assertNotIn("session", sent_body)
+
+    @patch("threat_intel._request")
+    def test_urlhaus_rejects_embedded_credentials_before_external_sharing(self, mocked):
+        with self.assertRaisesRegex(ThreatIntelError, "embedded credentials"):
+            lookup_urlhaus("https://user:password@example.com/private", "test-key")
+        mocked.assert_not_called()
 
     @patch("threat_intel._request", return_value={"data": {"ipAddress":"8.8.8.8","abuseConfidenceScore":25,"totalReports":3}})
     def test_abuseipdb_normalizes_result(self, mocked):
