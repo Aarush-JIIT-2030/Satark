@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv } from '../src/lib/firstlight-import.mjs';
+import { parseCsv, parseIsoTimestamp } from '../src/lib/firstlight-import.mjs';
+
+test('accepts explicit ISO-8601 timestamps and normalizes them to UTC', () => {
+  assert.equal(parseIsoTimestamp('2026-10-11T10:00:00Z'), '2026-10-11T10:00:00.000Z');
+  assert.equal(parseIsoTimestamp('2026-10-11T10:00:00+05:30'), '2026-10-11T04:30:00.000Z');
+  assert.equal(parseIsoTimestamp('2026-10-11T10:00Z'), '2026-10-11T10:00:00.000Z');
+});
+
+test('rejects ambiguous, timezone-less and impossible timestamps', () => {
+  for (const value of [
+    '10/11/2026 10:00',
+    '2026-10-11 10:00:00Z',
+    '2026-10-11T10:00:00',
+    '2026-02-30T10:00:00Z',
+    '2026-10-11T25:00:00Z',
+    '2026-10-11T10:00:00+14:01',
+    1791712800000,
+    null,
+  ]) assert.equal(parseIsoTimestamp(value), null, `invalid timestamp rejected: ${String(value)}`);
+});
 
 test('parses ordinary CSV rows and normalizes headers', () => {
   const rows = parseCsv('id,timestamp,source,summary\n1,2026-10-10T10:00:00Z,mail,Check message');
@@ -11,7 +30,7 @@ test('parses ordinary CSV rows and normalizes headers', () => {
 });
 
 test('supports BOM, quoted commas, escaped quotes, and multiline fields', () => {
-  const rows = parseCsv('\uFEFFid,source,summary\n1,mail,"hello, ""world""\nand next line"');
+  const rows = parseCsv('\uFEFFid,timestamp,source,summary\n1,2026-10-10T10:00:00Z,mail,"hello, ""world""\nand next line"');
   assert.equal(rows[0].id, '1');
   assert.equal(rows[0].summary, 'hello, "world"\nand next line');
 });
@@ -24,6 +43,20 @@ test('rejects unclosed quotes and quotes embedded in unquoted fields', () => {
 test('rejects empty and duplicate headers', () => {
   assert.throws(() => parseCsv('id,,summary\n1,x,y'), /headers cannot be empty/i);
   assert.throws(() => parseCsv('id,ID,summary\n1,2,y'), /duplicate column headers/i);
+});
+
+test('rejects CSV rows without source timestamps instead of inventing current time', () => {
+  assert.throws(
+    () => parseCsv('id,source,summary\nEV-1,mail,Message with no timestamp'),
+    /missing a timestamp\/time value/i
+  );
+});
+
+test('rejects duplicate evidence IDs in CSV imports', () => {
+  assert.throws(
+    () => parseCsv('id,timestamp,summary\nEV-1,2026-10-10T10:00:00Z,First\nEV-1,2026-10-10T10:01:00Z,Second'),
+    /duplicate evidence IDs/i
+  );
 });
 
 test('rejects records with more cells than the header', () => {

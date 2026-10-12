@@ -1,5 +1,6 @@
 """Browser smoke and layout regression checks for the local Streamlit app."""
 from pathlib import Path
+import re
 from io import BytesIO
 import os
 from playwright.sync_api import sync_playwright
@@ -51,24 +52,26 @@ def assert_no_overlap(page, selector, name):
 
 
 def choose_workspace(page, steps_down):
-    """Use the real selectbox keyboard path and verify the selected workspace."""
-    options = [
-        ("Incident", "Incident workspace"),
-        ("Evidence Integrity", "Evidence integrity"),
-        ("Investigation", "Coordinated investigation"),
-        ("Response Center", "Response center"),
-        ("Audit Trail", "Hash-chained audit trail"),
-    ]
-    workspace = page.get_by_role("combobox", name="Investigation workspace")
-    workspace.click()
-    # Streamlit's React-ARIA popover can rerender/detach options during a
-    # pointer click. Keyboard selection is a supported user interaction and
-    # avoids clicking a transient option node.
-    workspace.press("Home")
-    for _ in range(steps_down):
-        workspace.press("ArrowDown")
-    workspace.press("Enter")
-    page.get_by_text(options[steps_down][1], exact=False).wait_for(timeout=30_000)
+    """Select a visible FIRSTLIGHT workspace option and verify its content."""
+    options = ["Incident", "Evidence Integrity", "Investigation", "Response Center", "Audit Trail"]
+    active_markers = {
+        0: "Collection priority",
+        1: "Evidence Integrity Challenge",
+        2: "Coordinated investigation",
+        3: "Human approval gate",
+        4: "Hash-chained audit trail",
+    }
+    combobox = page.get_by_role("combobox", name="Investigation workspace")
+    combobox.wait_for(state="visible", timeout=10_000)
+    combobox.click()
+    # Clicking the combobox only focuses it in Streamlit's React-Aria widget;
+    # ArrowDown opens the popup. Force the option click to avoid a stability
+    # retry racing the popup's immediate rerender.
+    combobox.press("ArrowDown")
+    option = page.get_by_role("option", name=options[steps_down], exact=True)
+    option.wait_for(state="visible", timeout=10_000)
+    option.click(force=True, timeout=10_000)
+    page.get_by_text(active_markers[steps_down], exact=False).wait_for(timeout=30_000)
 
 
 
@@ -123,7 +126,14 @@ def main():
                     ("Overview", "Pause the panic."),
                 ):
                     page.locator('[data-testid="stSidebar"] button').filter(has_text=label).click()
-                    page.get_by_text(marker).wait_for(timeout=30_000)
+                    if label == "Overview":
+                        # The editorial hero uses an HTML <br> and a nested span,
+                        # so the full phrase is not one text node for get_by_text().
+                        hero_title = page.locator(".satark-home-hero h1")
+                        hero_title.wait_for(timeout=30_000)
+                        assert "Pause the panic." in hero_title.inner_text()
+                    else:
+                        page.get_by_text(marker).wait_for(timeout=30_000)
 
                 # FIRSTLIGHT is the flagship workspace; exercise its main
                 # synthetic-only investigation path without provider credentials.

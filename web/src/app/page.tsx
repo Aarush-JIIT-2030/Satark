@@ -1,5 +1,8 @@
 'use client';
 
+import SiteHeader from './site-header';
+import { Radar, SplitFlapText } from '../components/react-bits';
+
 import { useState } from 'react';
 
 type Analysis = {
@@ -12,6 +15,8 @@ type Analysis = {
   deterministic_signals: string[];
   model: string;
   notice: string;
+  threat_intel?: { status: string; source: string; detail: string; reference?: string };
+  ip_threat_intel?: { status: string; source: string; detail: string; reference?: string };
 };
 
 export default function Home() {
@@ -19,6 +24,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Analysis | null>(null);
+  const [shareWithThreatIntel, setShareWithThreatIntel] = useState(false);
+  const [shareIpWithThreatIntel, setShareIpWithThreatIntel] = useState(false);
 
   async function analyze() {
     setError('');
@@ -32,7 +39,7 @@ export default function Home() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ input: input.trim() })
+        body: JSON.stringify({ input: input.trim(), shareWithThreatIntel, shareIpWithThreatIntel })
       });
       const contentType = response.headers.get('content-type') || '';
       const data: unknown = contentType.includes('application/json')
@@ -61,7 +68,9 @@ export default function Home() {
         !Array.isArray(candidate.limitations) ||
         !Array.isArray(candidate.deterministic_signals) ||
         typeof candidate.model !== 'string' ||
-        typeof candidate.notice !== 'string'
+        typeof candidate.notice !== 'string' ||
+        (candidate.threat_intel !== undefined && (!candidate.threat_intel || typeof candidate.threat_intel !== 'object' || typeof candidate.threat_intel.status !== 'string' || typeof candidate.threat_intel.detail !== 'string')) ||
+        (candidate.ip_threat_intel !== undefined && (!candidate.ip_threat_intel || typeof candidate.ip_threat_intel !== 'object' || typeof candidate.ip_threat_intel.status !== 'string' || typeof candidate.ip_threat_intel.detail !== 'string'))
       ) {
         throw new Error('The analysis service returned an incomplete result. Please retry.');
       }
@@ -75,25 +84,21 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <header className="topbar">
-        <a className="brand" href="/"><span className="brand-mark">S</span><span>SATARK<span style={{ color: 'var(--lime)' }}>.</span></span></a>
-        <nav className="nav-links" aria-label="Main navigation">
-          <a href="/investigate">Investigate</a><a href="/firstlight">FIRSTLIGHT</a><a href="/reports">Reports</a><a href="/learn">Learn</a>
-        </nav>
-        <div className="status">● SECURITY WORKSPACE</div>
-      </header>
+      <SiteHeader status />
 
-      <div className="container">
+      <div className="container" id="main-content" tabIndex={-1}>
         <section className="hero">
           <div>
             <div className="eyebrow">✳ DIGITAL THREAT INVESTIGATION</div>
             <h1>Pause the panic.<br /><span>Find the signal.</span></h1>
+            <div className="hero-signal" aria-label="Security workspace status"><SplitFlapText words={['EVIDENCE FIRST', 'SIGNAL DETECTED', 'VERIFY THEN ACT']} fontSize={24} padTo={15} tileColor="#111827" textColor="#c9f36b" gap={3} cycleDelay={3200} /></div>
             <p className="lead">A calmer, evidence-first workspace for investigating suspicious digital content. Understand what was detected, why it matters, and what remains uncertain.</p>
             <div className="actions"><a className="btn btn-primary" href="#investigate">Start an investigation ↗</a><a className="btn btn-secondary" href="/firstlight">Open FIRSTLIGHT →</a></div>
           </div>
           <div className="signal-card">
+            <div className="radar-preview"><Radar color="#c9f36b" mode="sweep" speed={0.8} trail={0.3} scale={0.86} ringCount={5} spokeCount={12} targets={5} clutter={0.3} mouseInteraction={false} grain={0.01} /></div>
             <div className="card-head"><span>INVESTIGATION SNAPSHOT</span><span className="pill">SAMPLE DATA</span></div>
-            <div className="score-row"><div className="score">4/5</div><div className="score-meta"><strong>Evidence signals reviewed</strong><span>Illustrative training case · not a live scan</span></div></div>
+            <div className="score-row"><div className="score">3</div><div className="score-meta"><strong>Signal groups in this sample</strong><span>Illustrative training case · not a live scan</span></div></div>
             <div className="evidence-list">
               {[
                 ['↗', 'Source context', 'Review origin and destination'],
@@ -109,14 +114,14 @@ export default function Home() {
           <div className="workspace-grid">
             <article className="workspace-card"><div className="workspace-icon">⌕</div><h3>Investigate content</h3><p>Analyze a suspicious URL or message with AI-assisted triage and deterministic signals.</p><a className="text-link" href="/investigate">Open investigation →</a></article>
             <article className="workspace-card"><div className="workspace-icon">✳</div><h3>FIRSTLIGHT case lab</h3><p>Explore a guided synthetic case, evidence integrity, timelines and response decisions.</p><a className="text-link" href="/firstlight">Open case lab →</a></article>
-            <article className="workspace-card"><div className="workspace-icon">▤</div><h3>Evidence & reports</h3><p>Review analysis results and export a report from your current session.</p><a className="text-link" href="/reports">Open reports →</a></article>
+            <article className="workspace-card"><div className="workspace-icon">▤</div><h3>Evidence & reports</h3><p>Draft and export your own investigation review notes.</p><a className="text-link" href="/reports">Open reports →</a></article>
             <article className="workspace-card"><div className="workspace-icon">◎</div><h3>Security learning</h3><p>Practice identifying social engineering signals with safe, educational examples.</p><a className="text-link" href="/learn">Open learning hub →</a></article>
           </div>
         </section>
 
         <section className="tools-section">
           <div className="section-title"><div><div className="eyebrow">SATARK TOOLKIT</div><h2>One workspace. Different kinds of evidence.</h2></div><p>Choose a focused workflow. Tools that are not yet ported into Next.js open the existing full SATARK application.</p></div>
-          <div className="tool-grid">
+          <details className="tools-disclosure"><summary><span><strong>Browse all eight tools</strong><small>Includes links to legacy workflows and tools in this workspace</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary><div className="tool-grid">
             {[
               ['01','Text & message triage','Spot pressure tactics, impersonation cues and risky requests.','/investigate','OPEN ANALYSIS'],
               ['02','URL review','Review a URL as text without automatically visiting it.','/investigate','OPEN ANALYSIS'],
@@ -129,15 +134,19 @@ export default function Home() {
             ].map(([number,title,description,href,action]) => <article className="tool-card" key={number}><div className="tool-card-top"><span>{number}</span><span className="tool-arrow">↗</span></div><h3>{title}</h3><p>{description}</p><a className="text-link" href={href} target={href.startsWith('http')?'_blank':undefined} rel={href.startsWith('http')?'noreferrer':undefined}>{action} →</a></article>)}
           </div>
           <div className="tool-boundary"><span>i</span><p><strong>Feature availability:</strong> text/URL triage and the interactive FIRSTLIGHT training workflow run in this Next.js workspace. The image, QR, PDF, video, and extended history tools still run in the existing Streamlit application; they are linked here rather than falsely presented as native Next.js features.</p></div>
+          </details>
         </section>
 
         <section className="investigation" id="investigate">
           <aside className="info-panel"><div className="eyebrow">START HERE</div><h3>Inspect before you trust.</h3><p>Submit only content you are permitted to analyze. Do not include passwords, authentication codes, private keys or other secrets.</p><p><strong style={{ color: '#dce6f4' }}>Important:</strong> AI output is an assessment, not proof. The app does not visit submitted URLs or execute files.</p></aside>
           <div className="form-panel">
             <h3>New investigation</h3>
+            <p className="field-note">Before you analyze: the text you submit is sent to Groq for AI-assisted triage. Do not submit information you are not permitted to share. URLhaus and AbuseIPDB are separate optional lookups and receive only the extracted URL or public IP when you opt in and the server enables them.</p>
             <label htmlFor="content">Suspicious URL or message</label>
-            <textarea id="content" value={input} onChange={event => setInput(event.target.value)} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
-            <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
+            <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
+             <label className="intel-consent"><input type="checkbox" checked={shareWithThreatIntel} onChange={event => setShareWithThreatIntel(event.target.checked)} /> Also check the extracted URL against URLhaus. If enabled on the server, the URL origin and path are shared; query strings and fragments are removed first. Paths can still contain private identifiers, so do not submit private or signed URLs. This is optional.</label>
+            <label className="intel-consent"><input type="checkbox" checked={shareIpWithThreatIntel} onChange={event => setShareIpWithThreatIntel(event.target.checked)} /> Also check a literal IP address against AbuseIPDB. The extracted IP is shared with that external service if enabled on the server; domains and arbitrary text are not queried. This is optional.</label>
+            <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy || !input.trim()} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
             {error && <div className="result error" role="alert">{error}</div>}
             {result && <div className="analysis-result" role="status">
               <div className="result-top"><span className="pill">{result.threat_category}</span><strong>Risk signal: {result.risk_score}/100</strong></div>
@@ -146,6 +155,8 @@ export default function Home() {
               <h4>AI-identified indicators</h4><ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
               <h4>Recommended next steps</h4><ul>{result.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
               {result.limitations.length > 0 && <><h4>Limitations</h4><ul>{result.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
+               {result.threat_intel && <div className="threat-intel-result"><h4>URL reputation · {result.threat_intel.source}</h4><p><strong>{result.threat_intel.status.replaceAll("_", " ")}</strong> — {result.threat_intel.detail}</p>{result.threat_intel.reference && <a href={result.threat_intel.reference} target="_blank" rel="noreferrer">Open URLhaus reference ↗</a>}</div>}
+              {result.ip_threat_intel && <div className="threat-intel-result"><h4>IP reputation · {result.ip_threat_intel.source}</h4><p><strong>{result.ip_threat_intel.status.replaceAll("_", " ")}</strong> — {result.ip_threat_intel.detail}</p>{result.ip_threat_intel.reference && <a href={result.ip_threat_intel.reference} target="_blank" rel="noreferrer">Open AbuseIPDB reference ↗</a>}</div>}
               <small>{result.notice} · Model: {result.model}</small>
             </div>}
           </div>
