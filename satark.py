@@ -864,7 +864,7 @@ elif st.session_state.page == "Analyze":
             key="url_input"
         )
         st.checkbox(
-            "Check with configured threat-intelligence providers",
+            "Share indicators with external threat-intelligence providers (optional)",
             value=False,
             key="threat_intel_opt_in",
             help="When enabled, URLhaus receives the URL without query strings or fragments; paths may still contain private identifiers. URLs with embedded credentials are rejected. A public IPv4 literal is also sent to AbuseIPDB. Use only indicators you are comfortable sharing with these providers.",
