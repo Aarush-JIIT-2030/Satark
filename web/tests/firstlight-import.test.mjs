@@ -11,7 +11,7 @@ test('parses ordinary CSV rows and normalizes headers', () => {
 });
 
 test('supports BOM, quoted commas, escaped quotes, and multiline fields', () => {
-  const rows = parseCsv('\uFEFFid,source,summary\n1,mail,"hello, ""world""\nand next line"');
+  const rows = parseCsv('\uFEFFid,timestamp,source,summary\n1,2026-10-10T10:00:00Z,mail,"hello, ""world""\nand next line"');
   assert.equal(rows[0].id, '1');
   assert.equal(rows[0].summary, 'hello, "world"\nand next line');
 });
@@ -24,6 +24,13 @@ test('rejects unclosed quotes and quotes embedded in unquoted fields', () => {
 test('rejects empty and duplicate headers', () => {
   assert.throws(() => parseCsv('id,,summary\n1,x,y'), /headers cannot be empty/i);
   assert.throws(() => parseCsv('id,ID,summary\n1,2,y'), /duplicate column headers/i);
+});
+
+test('rejects CSV rows without source timestamps instead of inventing current time', () => {
+  assert.throws(
+    () => parseCsv('id,source,summary\nEV-1,mail,Message with no timestamp'),
+    /missing a timestamp\/time value/i
+  );
 });
 
 test('rejects duplicate evidence IDs in CSV imports', () => {
