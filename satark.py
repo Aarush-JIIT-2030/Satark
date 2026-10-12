@@ -867,7 +867,7 @@ elif st.session_state.page == "Analyze":
             "Check with configured threat-intelligence providers",
             value=False,
             key="threat_intel_opt_in",
-            help="When enabled, the submitted URL is sent to URLhaus. A public IPv4 literal is also sent to AbuseIPDB. Use only URLs you are comfortable sharing with these providers.",
+            help="When enabled, URLhaus receives the URL without query strings or fragments; paths may still contain private identifiers. URLs with embedded credentials are rejected. A public IPv4 literal is also sent to AbuseIPDB. Use only indicators you are comfortable sharing with these providers.",
         )
 
 
