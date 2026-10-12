@@ -59,6 +59,19 @@ async function inspectViewport(viewport, label) {
       viewport: document.documentElement.clientWidth,
       document: document.documentElement.scrollWidth,
       body: document.body.scrollWidth,
+      offenders: [...document.querySelectorAll('body *')]
+        .map(element => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName.toLowerCase(),
+            className: typeof element.className === 'string' ? element.className.slice(0, 90) : '',
+            text: (element.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 50),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+          };
+        })
+        .filter(element => element.right > document.documentElement.clientWidth + 1)
+        .slice(0, 8),
     }));
     assert.ok(dimensions.document <= dimensions.viewport + 1,
       `${label}: horizontal overflow at ${route.path}: ${JSON.stringify(dimensions)}`);
@@ -196,6 +209,24 @@ async function inspectViewport(viewport, label) {
 try {
   await inspectViewport({ width: 1440, height: 900 }, 'desktop');
   await inspectViewport({ width: 390, height: 844 }, 'mobile');
+  await inspectViewport({ width: 320, height: 720 }, 'small-mobile');
+
+  const reducedMotionPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await reducedMotionPage.emulateMedia({ reducedMotion: 'reduce' });
+  await reducedMotionPage.goto(baseURL + '/firstlight', { waitUntil: 'networkidle' });
+  const motion = await reducedMotionPage.evaluate(() => {
+    const transition = getComputedStyle(document.querySelector('button')).transitionDuration.split(',')[0].trim();
+    const numericDuration = Number.parseFloat(transition);
+    return {
+      shellAnimation: getComputedStyle(document.querySelector('.shell')).animationName,
+      buttonTransitionSeconds: transition.endsWith('ms') ? numericDuration / 1000 : numericDuration,
+      buttonTransition: transition,
+    };
+  });
+  assert.equal(motion.shellAnimation, 'none', 'FIRSTLIGHT must disable decorative animation for reduced-motion users');
+  assert.ok(motion.buttonTransitionSeconds <= 0.001,
+    `interactive transitions should be effectively disabled for reduced-motion users, got ${motion.buttonTransition}`);
+  await reducedMotionPage.close();
 
   const unsupportedMethod = await fetch(baseURL + '/api/analyze');
   assert.equal(unsupportedMethod.status, 405, 'API should reject unsupported methods');
