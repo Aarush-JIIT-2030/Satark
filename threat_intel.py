@@ -73,10 +73,22 @@ def lookup_urlhaus(url: str, auth_key: str) -> dict[str, Any]:
     """Look up one explicitly submitted URL in URLhaus."""
     if not auth_key.strip():
         raise ThreatIntelError("URLhaus is not configured.")
-    parsed = urllib.parse.urlsplit(url.strip())
+    try:
+        parsed = urllib.parse.urlsplit(url.strip())
+        # Reject embedded credentials before sending any part of this URL to a provider.
+        if parsed.username is not None or parsed.password is not None:
+            raise ThreatIntelError("URLs containing embedded credentials cannot be shared with URLhaus.")
+        # Accessing .port validates malformed port syntax without making a request.
+        _ = parsed.port
+    except ValueError:
+        raise ThreatIntelError("Enter a valid HTTP(S) URL before running URLhaus lookup.") from None
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ThreatIntelError("Enter a valid HTTP(S) URL before running URLhaus lookup.")
-    body = urllib.parse.urlencode({"url": url.strip()}).encode("utf-8")
+
+    # Query strings and fragments commonly contain tokens or personal data.
+    # Remove them before external sharing; paths may still contain identifiers.
+    sanitized_url = parsed._replace(query="", fragment="").geturl()
+    body = urllib.parse.urlencode({"url": sanitized_url}).encode("utf-8")
     payload = _request(
         "https://urlhaus-api.abuse.ch/v1/url/",
         method="POST",
@@ -87,7 +99,7 @@ def lookup_urlhaus(url: str, auth_key: str) -> dict[str, Any]:
     if status == "ok":
         tags = payload.get("tags", [])
         return {
-            "provider": "URLhaus", "status": "match", "indicator": url.strip(),
+            "provider": "URLhaus", "status": "match", "indicator": sanitized_url,
             "threat": str(payload.get("threat", "unknown"))[:120],
             "url_status": str(payload.get("url_status", "unknown"))[:40],
             "date_added": str(payload.get("date_added", ""))[:40],
@@ -97,7 +109,7 @@ def lookup_urlhaus(url: str, auth_key: str) -> dict[str, Any]:
         }
     if status in {"no_results", "not_found"}:
         return {
-            "provider": "URLhaus", "status": "no_match", "indicator": url.strip(),
+            "provider": "URLhaus", "status": "no_match", "indicator": sanitized_url,
             "reference": "https://urlhaus.abuse.ch/",
             "note": "No URLhaus record was returned. This does not prove the URL is safe.",
         }
