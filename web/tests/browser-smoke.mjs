@@ -133,17 +133,25 @@ async function inspectViewport(viewport, label) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.getByText('Synthetic browser test summary').waitFor();
       assert.equal(await exportButton.isDisabled(), false, 'analysis-only report should be exportable without notes');
+      const analysisOnlyTxtPromise = page.waitForEvent('download');
+      await exportButton.click();
+      const analysisOnlyTxt = await analysisOnlyTxtPromise;
+      assert.equal(analysisOnlyTxt.suggestedFilename(), 'satark-review-notes.txt');
+      const analysisOnlyTxtPath = await analysisOnlyTxt.path();
+      assert.ok(analysisOnlyTxtPath);
+      assert.match(await fs.readFile(analysisOnlyTxtPath, 'utf8'), /Synthetic browser test summary/);
       const analysisOnlyPromise = page.waitForEvent('download');
       await jsonExportButton.click();
       const analysisOnlyDownload = await analysisOnlyPromise;
+      assert.equal(analysisOnlyDownload.suggestedFilename(), 'satark-review-notes.json');
       const analysisOnlyPath = await analysisOnlyDownload.path();
       assert.ok(analysisOnlyPath);
       const analysisOnlyPayload = JSON.parse(await fs.readFile(analysisOnlyPath, 'utf8'));
       assert.equal(analysisOnlyPayload.analysis_snapshot.analysis.summary, 'Synthetic browser test summary');
       assert.equal(analysisOnlyPayload.notes, '');
+      assert.equal(analysisOnlyPayload.provenance.analysis_included, true);
       await notes.fill('Synthetic review note: verify sender through official channel.');
       assert.equal(await exportButton.isDisabled(), false, 'export should enable after notes are entered');
-      await notes.fill('Synthetic review note: verify sender through official channel.');
       assert.equal(await exportButton.isDisabled(), false, 'export should enable after notes are entered');
       const downloadPromise = page.waitForEvent('download');
       await exportButton.click();
@@ -159,18 +167,16 @@ async function inspectViewport(viewport, label) {
       const jsonPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
       assert.equal(jsonPayload.schema_version, 1);
       assert.equal(jsonPayload.report_type, 'review-notes-with-optional-session-analysis');
-      assert.equal(jsonPayload.analysis_snapshot, null, 'reports without a prior analysis must not invent analysis evidence');
-      assert.equal(jsonPayload.provenance.analysis_included, false);
-      assert.equal(jsonPayload.provenance.submitted_source_text_saved, false);
-      assert.equal(jsonPayload.notes, await notes.inputValue().then(value => value.trim()));
       assert.equal(jsonPayload.analysis_snapshot.analysis.summary, 'Synthetic browser test summary');
       assert.equal(jsonPayload.provenance.analysis_included, true);
+      assert.equal(jsonPayload.provenance.submitted_source_text_saved, false);
+      assert.equal(jsonPayload.notes, await notes.inputValue().then(value => value.trim()));
       assert.ok(Array.isArray(jsonPayload.limitations) && jsonPayload.limitations.length > 0,
         'JSON export should explain its evidence and certification limitations');
       await page.getByRole('status').filter({ hasText: /download manager/i }).waitFor();
       await page.getByRole('button', { name: /clear notes/i }).click();
       assert.equal(await notes.inputValue(), '');
-      assert.equal(await exportButton.isDisabled(), true);
+      assert.equal(await exportButton.isDisabled(), false, 'analysis-only export should remain available after clearing notes');
     }
     if (route.path === '/learn') {
       for (const name of ['q0', 'q1', 'q2']) await page.locator(`input[name="${name}"]`).nth(name === 'q0' ? 1 : name === 'q1' ? 2 : 1).check();
