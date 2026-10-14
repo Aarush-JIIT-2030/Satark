@@ -2,6 +2,7 @@
 
 import SiteHeader from './site-header';
 import { Radar, SplitFlapText } from '../components/react-bits';
+import ServiceReadiness from '../components/service-readiness';
 
 import { useState } from 'react';
 
@@ -24,8 +25,6 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Analysis | null>(null);
-  const [shareWithThreatIntel, setShareWithThreatIntel] = useState(false);
-  const [shareIpWithThreatIntel, setShareIpWithThreatIntel] = useState(false);
 
   async function analyze() {
     setError('');
@@ -39,7 +38,7 @@ export default function Home() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ input: input.trim(), shareWithThreatIntel, shareIpWithThreatIntel })
+        body: JSON.stringify({ input: input.trim() })
       });
       const contentType = response.headers.get('content-type') || '';
       const data: unknown = contentType.includes('application/json')
@@ -87,6 +86,7 @@ export default function Home() {
       <SiteHeader status />
 
       <div className="container" id="main-content" tabIndex={-1}>
+        <ServiceReadiness />
         <section className="hero">
           <div>
             <div className="eyebrow">✳ DIGITAL THREAT INVESTIGATION</div>
@@ -112,7 +112,7 @@ export default function Home() {
         <section>
           <div className="section-title"><div><div className="eyebrow">YOUR WORKSPACE</div><h2>Investigate with context.</h2></div><p>Clear workflows. Evidence before conclusions.</p></div>
           <div className="workspace-grid">
-            <article className="workspace-card"><div className="workspace-icon">⌕</div><h3>Investigate content</h3><p>Analyze a suspicious URL or message with AI-assisted triage and deterministic signals.</p><a className="text-link" href="/investigate">Open investigation →</a></article>
+            <article className="workspace-card"><div className="workspace-icon">⌕</div><h3>Investigate content</h3><p>Analyze a suspicious URL or message with local rules and optional self-hosted AI.</p><a className="text-link" href="/investigate">Open investigation →</a></article>
             <article className="workspace-card"><div className="workspace-icon">✳</div><h3>FIRSTLIGHT case lab</h3><p>Explore a guided synthetic case, evidence integrity, timelines and response decisions.</p><a className="text-link" href="/firstlight">Open case lab →</a></article>
             <article className="workspace-card"><div className="workspace-icon">▤</div><h3>Evidence & reports</h3><p>Draft and export your own investigation review notes.</p><a className="text-link" href="/reports">Open reports →</a></article>
             <article className="workspace-card"><div className="workspace-icon">◎</div><h3>Security learning</h3><p>Practice identifying social engineering signals with safe, educational examples.</p><a className="text-link" href="/learn">Open learning hub →</a></article>
@@ -120,20 +120,20 @@ export default function Home() {
         </section>
 
         <section className="tools-section">
-          <div className="section-title"><div><div className="eyebrow">SATARK TOOLKIT</div><h2>One workspace. Different kinds of evidence.</h2></div><p>Choose a focused workflow. Tools that are not yet ported into Next.js open the existing full SATARK application.</p></div>
-          <details className="tools-disclosure"><summary><span><strong>Browse all eight tools</strong><small>Includes links to legacy workflows and tools in this workspace</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary><div className="tool-grid">
+          <div className="section-title"><div><div className="eyebrow">SATARK TOOLKIT</div><h2>One workspace. Different kinds of evidence.</h2></div><p>Choose a focused workflow. Unported tools are clearly marked as planned and will not redirect to an unverified legacy deployment.</p></div>
+          <details className="tools-disclosure"><summary><span><strong>Browse all eight tools</strong><small>Shows what is available now and what is still being migrated</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary><div className="tool-grid">
             {[
               ['01','Text & message triage','Spot pressure tactics, impersonation cues and risky requests.','/investigate','OPEN ANALYSIS'],
               ['02','URL review','Review a URL as text without automatically visiting it.','/investigate','OPEN ANALYSIS'],
-              ['03','Image & deepfake review','Image authenticity and visual-content analysis in the full app.','https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/','OPEN FULL APP'],
-              ['04','QR-code investigation','Inspect suspicious QR content using the existing scanner.','https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/','OPEN FULL APP'],
-              ['05','PDF & document review','Review document content with the full SATARK scanner.','https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/','OPEN FULL APP'],
-              ['06','Video & media signals','Explore available video and media workflows in the full app.','https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/','OPEN FULL APP'],
-              ['07','History & reports','Review the full app’s session history and export options.','https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/','OPEN FULL APP'],
+              ['03','Image & deepfake review','Local image metadata and content-analysis workflow is not yet migrated.','', 'NOT YET PORTED'],
+              ['04','QR-code investigation','Decode QR payloads locally with safe parsing and evidence capture.','', 'NOT YET PORTED'],
+              ['05','PDF & document review','Extract text and metadata in a sandboxed local file pipeline.','', 'NOT YET PORTED'],
+              ['06','Video & media signals','Media processing and provenance checks are not yet migrated.','', 'NOT YET PORTED'],
+              ['07','History & reports','Persistent case history and evidence-linked report exports are in progress.','', 'NOT YET PORTED'],
               ['08','Academy & scam challenge','Practice recognition and awareness workflows.','/learn','OPEN LEARNING']
-            ].map(([number,title,description,href,action]) => <article className="tool-card" key={number}><div className="tool-card-top"><span>{number}</span><span className="tool-arrow">↗</span></div><h3>{title}</h3><p>{description}</p><a className="text-link" href={href} target={href.startsWith('http')?'_blank':undefined} rel={href.startsWith('http')?'noreferrer':undefined}>{action} →</a></article>)}
+            ].map(([number,title,description,href,action]) => <article className="tool-card" key={number}><div className="tool-card-top"><span>{number}</span><span className="tool-arrow">↗</span></div><h3>{title}</h3><p>{description}</p>{href ? <a className="text-link" href={href} target={href.startsWith('http')?'_blank':undefined} rel={href.startsWith('http')?'noreferrer':undefined}>{action} →</a> : <span className="text-link" aria-disabled="true">{action}</span>}</article>)}
           </div>
-          <div className="tool-boundary"><span>i</span><p><strong>Feature availability:</strong> text/URL triage and the interactive FIRSTLIGHT training workflow run in this Next.js workspace. The image, QR, PDF, video, and extended history tools still run in the existing Streamlit application; they are linked here rather than falsely presented as native Next.js features.</p></div>
+          <div className="tool-boundary"><span>i</span><p><strong>Feature availability:</strong> text/URL triage and the interactive FIRSTLIGHT training workflow run in this Next.js workspace. Image, QR, PDF, video, and durable case-history features are not yet ported to the local-only web app; no external legacy link is presented as a working native feature.</p></div>
           </details>
         </section>
 
@@ -141,22 +141,18 @@ export default function Home() {
           <div className="info-panel"><div className="eyebrow">START HERE</div><h3>Inspect before you trust.</h3><p>Submit only content you are permitted to analyze. Do not include passwords, authentication codes, private keys or other secrets.</p><p><strong style={{ color: '#dce6f4' }}>Important:</strong> AI output is an assessment, not proof. The app does not visit submitted URLs or execute files.</p></div>
           <div className="form-panel">
             <h3>New investigation</h3>
-            <p className="field-note">Before you analyze: the text you submit is sent to Groq for AI-assisted triage. Do not submit information you are not permitted to share. URLhaus and AbuseIPDB are separate optional lookups and receive only the extracted URL or public IP when you opt in and the server enables them.</p>
+            <p className="field-note">Analysis runs with local deterministic rules by default. If you configure your own Ollama instance, the text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys or secrets.</p>
             <label htmlFor="content">Suspicious URL or message</label>
             <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }} placeholder="Paste a suspicious URL or message here…" maxLength={12000} aria-describedby="content-hint" />
-             <label className="intel-consent"><input type="checkbox" checked={shareWithThreatIntel} onChange={event => setShareWithThreatIntel(event.target.checked)} /> Also check the extracted URL against URLhaus. If enabled on the server, the URL origin and path are shared; query strings and fragments are removed first. Paths can still contain private identifiers, so do not submit private or signed URLs. This is optional.</label>
-            <label className="intel-consent"><input type="checkbox" checked={shareIpWithThreatIntel} onChange={event => setShareIpWithThreatIntel(event.target.checked)} /> Also check a literal IP address against AbuseIPDB. The extracted IP is shared with that external service if enabled on the server; domains and arbitrary text are not queried. This is optional.</label>
             <div className="form-bottom"><span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span><button className="btn btn-primary" disabled={busy || !input.trim()} onClick={analyze}>{busy ? 'Analyzing…' : 'Analyze with SATARK →'}</button></div>
             {error && <div className="result error" role="alert">{error}</div>}
             {result && <div className="analysis-result" role="status">
-              <div className="result-top"><span className="pill">{result.threat_category}</span><strong>Risk signal: {result.risk_score}/100</strong></div>
-              <p>{result.summary}</p>
+              <div className="result-top"><span className="pill">{result.threat_category}</span><strong>Heuristic priority: {result.risk_score}/100</strong></div>
+              <p>{result.summary}</p><p className="field-note">{result.notice}</p>
               {result.deterministic_signals.length > 0 && <><h4>Deterministic signals</h4><ul>{result.deterministic_signals.map(signal => <li key={signal}>{signal}</li>)}</ul></>}
-              <h4>AI-identified indicators</h4><ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
+              <h4>Indicators and context</h4><ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
               <h4>Recommended next steps</h4><ul>{result.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
               {result.limitations.length > 0 && <><h4>Limitations</h4><ul>{result.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-               {result.threat_intel && <div className="threat-intel-result"><h4>URL reputation · {result.threat_intel.source}</h4><p><strong>{result.threat_intel.status.replaceAll("_", " ")}</strong> — {result.threat_intel.detail}</p>{result.threat_intel.reference && <a href={result.threat_intel.reference} target="_blank" rel="noreferrer">Open URLhaus reference ↗</a>}</div>}
-              {result.ip_threat_intel && <div className="threat-intel-result"><h4>IP reputation · {result.ip_threat_intel.source}</h4><p><strong>{result.ip_threat_intel.status.replaceAll("_", " ")}</strong> — {result.ip_threat_intel.detail}</p>{result.ip_threat_intel.reference && <a href={result.ip_threat_intel.reference} target="_blank" rel="noreferrer">Open AbuseIPDB reference ↗</a>}</div>}
               <small>{result.notice} · Model: {result.model}</small>
             </div>}
           </div>

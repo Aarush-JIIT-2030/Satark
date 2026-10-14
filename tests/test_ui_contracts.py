@@ -102,7 +102,7 @@ class UIContractTests(unittest.TestCase):
 
     def test_provider_check_does_not_claim_success_when_discovery_fails(self):
         self.assertIn("if not available:", NAV)
-        self.assertIn("Could not verify provider access", NAV)
+        self.assertIn("Ollama is unreachable or no models are installed", NAV)
         self.assertIn("st.session_state.text_model = None", NAV)
 
     def test_primary_navigation_stays_focused(self):
@@ -136,7 +136,7 @@ class UIContractTests(unittest.TestCase):
 
     def test_intro_loading_screen_is_branded_accessible_and_nonblocking(self):
         self.assertIn("from ui.loading import render_intro_loader", APP)
-        self.assertLess(APP.index("render_intro_loader()"), APP.index("api_key, role = render_sidebar("))
+        self.assertLess(APP.index("render_intro_loader()"), APP.index("_, role = render_sidebar("))
         for expected in (
             "SATARK",
             "FIRSTLIGHT",

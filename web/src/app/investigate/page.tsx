@@ -2,6 +2,7 @@
 
 import SiteHeader from '../site-header';
 import { LatticeLoader, ThoughtLine } from '../../components/react-bits';
+import ServiceReadiness from '../../components/service-readiness';
 import { useState } from 'react';
 
 const LAST_ANALYSIS_KEY = 'satark:last-analysis:v1';
@@ -26,8 +27,6 @@ export default function InvestigatePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Analysis | null>(null);
-  const [shareWithThreatIntel, setShareWithThreatIntel] = useState(false);
-  const [shareIpWithThreatIntel, setShareIpWithThreatIntel] = useState(false);
 
   async function run() {
     const trimmed = input.trim();
@@ -43,7 +42,7 @@ export default function InvestigatePage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ input: trimmed, shareWithThreatIntel, shareIpWithThreatIntel }),
+        body: JSON.stringify({ input: trimmed }),
       });
       const data: unknown = (response.headers.get('content-type') || '').includes('application/json')
         ? await response.json()
@@ -102,39 +101,36 @@ export default function InvestigatePage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
+        <ServiceReadiness />
         <div className="eyebrow">WORKSPACE / INVESTIGATE</div>
         <h1>Start with the evidence.</h1>
-        <p className="lead">Submit a suspicious message or URL as text. SATARK combines AI-assisted triage with basic deterministic signals. It will not visit the URL or execute files.</p>
+        <p className="lead">Submit a suspicious message or URL as text. SATARK runs local deterministic checks and can use an optional self-hosted Ollama model. It will not visit the URL or execute files.</p>
         <section className="form-panel" aria-labelledby="investigation-title">
           <h2 id="investigation-title">New investigation</h2>
-          <p className="field-note">When you submit, the full text is sent to Groq for AI-assisted triage. Use only content you are permitted to share; never include passwords, OTPs, private keys, or other secrets. URLhaus and AbuseIPDB are separate optional lookups and receive only the extracted URL or public IP when you opt in and the server enables them.</p>
+          <p className="field-note">Analysis defaults to local-only rules. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
           <label htmlFor="content">Suspicious URL or message</label>
           <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }}
             maxLength={12000} placeholder="Paste a suspicious URL or message here…" aria-describedby="content-hint" />
-          <label className="intel-consent"><input type="checkbox" checked={shareWithThreatIntel} onChange={event => setShareWithThreatIntel(event.target.checked)} /> Also check the extracted URL against URLhaus. If enabled on the server, the URL origin and path are shared with this external service; query strings and fragments are removed first. Paths can still contain private identifiers, so do not submit private or signed URLs. This is optional.</label>
-          <label className="intel-consent"><input type="checkbox" checked={shareIpWithThreatIntel} onChange={event => setShareIpWithThreatIntel(event.target.checked)} /> Also check a literal IP address against AbuseIPDB. If enabled on the server, the extracted IP address is shared with this external service. Domains and arbitrary text are not queried. This is optional.</label>
           <div className="form-bottom">
             <span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span>
             <button className="btn btn-primary" onClick={run} disabled={busy || !input.trim()}>
               {busy ? 'Analyzing…' : 'Analyze content →'}
             </button>
           </div>
-          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c9f36b" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking deterministic signals", "Requesting AI-assisted triage"]} working={busy} color="#c9f36b" fontSize={13} shimmer /></div>}
+          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c9f36b" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking local rules", "Using self-hosted model if configured"]} working={busy} color="#c9f36b" fontSize={13} shimmer /></div>}
           {error && <div className="result error" role="alert">{error}</div>}
           {result && <section className="analysis-result" aria-live="polite" aria-labelledby="analysis-result-title">
             <div className="result-top">
               <span className="pill">{result.threat_category}</span>
-              <strong id="analysis-result-title">Risk signal: {result.risk_score}/100</strong>
+              <strong id="analysis-result-title">Heuristic priority: {result.risk_score}/100</strong>
             </div>
-            <p>{result.summary}</p>
+            <p>{result.summary}</p><p className="field-note">{result.notice}</p>
             {result.deterministic_signals.length > 0 && <><h3>Deterministic signals</h3><ul>{result.deterministic_signals.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-            <h3>AI-identified indicators</h3>
+            <h3>Indicators and context</h3>
             <ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
             <h3>Recommended next steps</h3>
             <ul>{result.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
             {result.limitations.length > 0 && <><h3>Limitations</h3><ul>{result.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-            {result.threat_intel && <div className="threat-intel-result"><h3>URL reputation · {result.threat_intel.source}</h3><p><strong>{result.threat_intel.status.replaceAll('_', ' ')}</strong> — {result.threat_intel.detail}</p>{result.threat_intel.reference && <a href={result.threat_intel.reference} target="_blank" rel="noreferrer">Open URLhaus reference ↗</a>}</div>}
-            {result.ip_threat_intel && <div className="threat-intel-result"><h3>IP reputation · {result.ip_threat_intel.source}</h3><p><strong>{result.ip_threat_intel.status.replaceAll('_', ' ')}</strong> — {result.ip_threat_intel.detail}</p>{result.ip_threat_intel.reference && <a href={result.ip_threat_intel.reference} target="_blank" rel="noreferrer">Open AbuseIPDB reference ↗</a>}</div>}
             <p className="hint">{result.notice} · Model: {result.model}</p>
           </section>}
         </section>

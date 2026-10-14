@@ -62,7 +62,6 @@ from ui.loading import render_intro_loader
 from ui.navigation import render_sidebar
 from ui.results import render_threat_analysis, render_verification_sources, render_evidence_ledger, render_evidence_review, render_investigation_timeline, render_threat_intelligence
 from evidence_engine import extract_deterministic_evidence
-from threat_intel import enrich_submitted_url
 from ui.history import render_history
 from ui.learning import render_academy, render_classroom
 
@@ -170,7 +169,7 @@ from input_processing import (
 # Streamlit entry point; feature modules are kept separate where practical
 #
 # Keeps the original SATARK analysis flow, while adding:
-# - automatic Groq model discovery
+# - automatic local Ollama model discovery
 # - resilient model selection based on provider discovery
 # - improved result presentation
 # - session history + report export
@@ -187,7 +186,7 @@ from input_processing import (
 # 2. render_result() color-codes the confidence metric (red/amber/green)
 #    so low-confidence results are visually distinct.
 # 3. VISION_MODEL_PREFERENCES is now a real fallback chain instead of a
-#    single hardcoded model; analyze_with_groq tries each in order instead
+#    single hardcoded model; analyze_with_local_model tries each in order instead
 #    of giving up after the first failure.
 # 4. is_scam_claim / normalize_result_consistency now trust the model's
 #    explicit threat_category field first, and only fall back to regex
@@ -197,9 +196,9 @@ from input_processing import (
 #    full 0-100 range honestly instead of defaulting high.
 # 6. NEW: Video scanner mode. Videos are analyzed by extracting a handful of
 #    representative frames (via OpenCV) and, when ffmpeg/moviepy is available,
-#    transcribing the audio track (via Groq Whisper) so speech-based scam
+#    transcribing the audio track (via local Whisper) so speech-based scam
 #    signals aren't missed. Frames + transcript are fed into the same
-#    analyze_with_groq pipeline used for images/text.
+#    analyze_with_local_model pipeline used for images/text.
 # ============================================================
 
 st.set_page_config(
@@ -221,8 +220,8 @@ render_radar_background()
 
 # --------------------------- Helpers --------------------------
 
-def analyze_with_groq(client, content, mode, role, image_data_urls=None, available_models=None):
-    """Run a SATARK analysis using an appropriate Groq model.
+def analyze_with_local_model(client, content, mode, role, image_data_urls=None, available_models=None):
+    """Run a SATARK analysis using an appropriate local model.
 
     Vision requests now try each model in VISION_MODEL_PREFERENCES in order
     instead of a single hardcoded model, so a deprecated/inaccessible vision
@@ -305,13 +304,13 @@ Not detected, Low, Medium, High.
             response = call(model)
             choices = getattr(response, "choices", None) or []
             if not choices:
-                raise RuntimeError("The AI provider returned no choices.")
+                raise RuntimeError("Local Ollama returned no choices.")
             message = getattr(choices[0], "message", None)
             if message is None:
-                raise RuntimeError("The AI provider returned an incomplete response.")
+                raise RuntimeError("Local Ollama returned an incomplete response.")
             raw = getattr(message, "content", "") or ""
 
-            # Groq normally returns a string. Be defensive if an SDK version
+            # Ollama returns a string. Be defensive if an SDK version
             # exposes structured content instead.
             if not isinstance(raw, str):
                 if isinstance(raw, list):
@@ -371,7 +370,7 @@ Not detected, Low, Medium, High.
             return normalize_result_consistency(result)
 
         except Exception as exc:
-            # Classify rate limits before discarding provider details. SDK errors
+            # Classify local model failures before discarding diagnostics. HTTP errors
             # can include request metadata, so never return their raw text to users.
             error_text = str(exc).lower()
             rate_limited = rate_limited or "rate_limit_exceeded" in error_text or "request too large" in error_text
@@ -380,24 +379,61 @@ Not detected, Low, Medium, High.
             # immediately — this applies to text, image and video requests now.
             continue
 
-    detail = "Provider requests failed for the configured models. Check the server logs and provider status for diagnostics."
+    # Never make the app unusable just because the optional local model is
+    # offline. Return conservative local pattern signals, clearly marked as
+    # insufficient evidence; never label a no-model result "Safe".
+    lowered = safe_text(content).lower()
+    indicators = []
+    score = 0
+    if re.search(r"https?://", lowered):
+        indicators.append("URL present; destination reputation was not checked.")
+        score += 8
+    if re.search(r"\b(urgent|immediately|act now|account suspended|verify your account|last chance)\b", lowered):
+        indicators.append("Urgency or account-pressure language.")
+        score += 10
+    if re.search(r"\b(password|passcode|otp|verification code|login credentials|private key)\b", lowered):
+        indicators.append("Credential or secret-related language.")
+        score += 20
+    if re.search(r"\b(prize|processing fee|gift card|wire transfer|crypto payment|payment required)\b", lowered):
+        indicators.append("Payment, prize, or transfer language.")
+        score += 12
     if image_data_urls:
-        hint = (
-            "\n\nThis looks like a Groq rate-limit (tokens-per-minute) issue on the free/on-demand "
-            "tier rather than a broken model. Wait a minute and try again with fewer or smaller "
-            "images, or upgrade the Groq account tier."
-        ) if rate_limited else ""
-        raise RuntimeError(
-            "SATARK could not complete the visual analysis with any configured "
-            "vision model (tried: " + ", ".join(candidates) + "). Please verify "
-            "that this Groq API key/project has access to at least one supported "
-            "vision model and try again.\n" + detail + hint
-        )
+        indicators.append("Local vision model unavailable; image/video frames were not visually assessed.")
+    if not indicators:
+        indicators.append("Local model unavailable; no AI inference was performed.")
 
-    raise RuntimeError(
-        '<tbody>'+''.join(rows)+'</tbody></table>'
+    category = "Phishing" if any("Credential" in item for item in indicators) else (
+        "Scam" if any("Payment" in item for item in indicators) else (
+            "Suspicious" if score else "Needs review"
+        )
     )
-    st.markdown(f'<section class="report-section"><h3>📚 Official Verification Sources</h3>{table}</section>', unsafe_allow_html=True)
+    fallback_result = {
+        "risk_score": min(80, score),
+        "confidence": 15,
+        "threat_category": category,
+        "verdict": "Local model unavailable; manual review is required.",
+        "summary": (
+            "Ollama did not return a result. SATARK used only conservative local pattern checks; "
+            "no AI inference or external reputation lookup was performed. This is insufficient "
+            "evidence, not a safety verdict."
+        ),
+        "key_indicators": indicators[:8],
+        "recommendations": [
+            "Verify the sender and destination through an independent trusted channel.",
+            "Do not enter credentials or payment details while investigating.",
+            "Preserve the original evidence and retry after your local model is available.",
+        ],
+        "scam_pattern": "local-model-unavailable",
+        "threat_analysis": build_fallback_threat_analysis({
+            "threat_category": category,
+            "key_indicators": indicators,
+            "summary": "Local model unavailable; needs review.",
+        }),
+        "final_conclusion": "The configured local model did not complete inference. Treat these pattern matches as triage hints only and verify independently.",
+    }
+    return normalize_result_consistency(
+        normalize_result(fallback_result, json.dumps(fallback_result), "local-deterministic-fallback")
+    )
 
 
 def confidence_css_class(confidence):
@@ -583,7 +619,7 @@ sc_init_state()  # Scam Challenge v2 session-state defaults
 render_intro_loader()  # One-time, dismissible intro; app remains usable underneath
 
 # --------------------------- Sidebar ---------------------------
-api_key, role = render_sidebar(
+_, role = render_sidebar(
     get_client,
     discover_models,
     choose_model,
@@ -863,12 +899,7 @@ elif st.session_state.page == "Analyze":
             type="url",
             key="url_input"
         )
-        st.checkbox(
-            "Share indicators with external threat-intelligence providers (optional)",
-            value=False,
-            key="threat_intel_opt_in",
-            help="When enabled, URLhaus receives the URL without query strings or fragments; paths may still contain private identifiers. URLs with embedded credentials are rejected. A public IPv4 literal is also sent to AbuseIPDB. Use only indicators you are comfortable sharing with these providers.",
-        )
+        st.caption("URL reputation lookups are disabled in local-only mode. No indicator is sent to a third-party service.")
 
 
     # ==========================================================
@@ -1037,15 +1068,6 @@ elif st.session_state.page == "Analyze":
 
     if analyze_clicked:
 
-        if not safe_text(api_key):
-
-            st.error(
-                "🔑 Enter your Groq API key in the sidebar first."
-            )
-
-            st.stop()
-
-
         allowed, retry_after = consume_analysis_slot(MAX_ANALYSES_PER_MINUTE)
         if not allowed:
             wait_seconds = max(1, int(retry_after + 0.999))
@@ -1068,7 +1090,7 @@ elif st.session_state.page == "Analyze":
             st.session_state.result = None
             st.session_state.vision_model = None
 
-            client = get_client(api_key)
+            client = get_client()
 
             st.markdown(
                 '<div class="analysis-loader" '
@@ -1283,23 +1305,12 @@ elif st.session_state.page == "Analyze":
                     # text-only local rules independently verified visual claims.
                     deterministic_evidence = []
 
-                # External reputation is user-opt-in and cannot override local/AI analysis.
-                threat_intelligence = {"results": [], "provider_notes": [], "queried": False}
-                if mode == "URL" and st.session_state.get("threat_intel_opt_in", False):
-                    def _server_secret(name):
-                        value = os.getenv(name, "")
-                        try:
-                            if not value and name in st.secrets:
-                                value = str(st.secrets[name])
-                        except Exception:
-                            pass
-                        return value.strip()
-
-                    threat_intelligence = enrich_submitted_url(
-                        content,
-                        urlhaus_key=_server_secret("URLHAUS_AUTH_KEY"),
-                        abuseipdb_key=_server_secret("ABUSEIPDB_API_KEY"),
-                    )
+                # Local-only mode never calls external reputation APIs.
+                threat_intelligence = {
+                    "results": [],
+                    "provider_notes": ["External reputation lookups are disabled in local-only mode."],
+                    "queried": False,
+                }
                 evidence_context_ti = json.dumps(
                     threat_intelligence.get("results", []),
                     ensure_ascii=False,
@@ -1321,7 +1332,7 @@ elif st.session_state.page == "Analyze":
                     f"Submitted content and extracted content:\n{prepared}\n\n"
                     "Independent local rule observations (JSON; observations, not verdicts):\n"
                     f"{evidence_context}\n\n"
-                    f"Optional external threat-intelligence results (JSON; corroborating signals only):\n{evidence_context_ti}\n\n"
+                    f"Local threat-intelligence status (external lookups disabled; no API was called):\n{evidence_context_ti}\n\n"
                     "Use these observations as a separate evidence source. Do not claim that "
                     "an observation proves fraud. Do not invent corroboration when the list is "
                     "empty. Clearly distinguish direct observations, inference, and unknowns. "
@@ -1331,10 +1342,10 @@ elif st.session_state.page == "Analyze":
 
 
                 # ==================================================
-                # GROQ ANALYSIS
+                # LOCAL OLLAMA ANALYSIS
                 # ==================================================
 
-                result = analyze_with_groq(
+                result = analyze_with_local_model(
                     client,
                     prompt,
                     mode,
@@ -1386,14 +1397,14 @@ elif st.session_state.page == "Analyze":
 
             st.error(
                 "⚠️ SATARK could not complete the analysis. "
-                "Check your API key, internet connection, "
+                "Check that your local Ollama service is running, "
                 "input and model access."
             )
 
             # Do not echo raw provider/network exception strings into the UI:
             # SDK errors can contain request metadata or other sensitive details.
             st.caption(
-                "Technical details were withheld to avoid exposing provider metadata. "
+                "Technical details were withheld to avoid exposing local runtime metadata. "
                 "Check the server-side logs for the exception type and request context."
             )
 

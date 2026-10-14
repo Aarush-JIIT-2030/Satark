@@ -5,9 +5,9 @@
 
 **Investigate the incident. Trace the evidence. Make the next decision with context.**
 
-SATARK Sentinel is a security-awareness and incident-investigation prototype built around **FIRSTLIGHT Incident Command**. It combines a deterministic, evidence-linked investigation workflow with optional AI-assisted analysis of suspicious digital content. The goal is to help a person move from scattered signals to a structured, reviewable picture of what may have happened—without presenting an AI score as a verdict.
+SATARK Sentinel is a security-awareness and incident-investigation prototype built around **FIRSTLIGHT Incident Command**. Its web analysis defaults to local deterministic checks and can optionally use a self-hosted Ollama model. The default analysis path requires no third-party AI API key and does not send submitted content to external threat-intelligence APIs. The goal is to help a person move from scattered signals to a structured, reviewable picture of what may have happened—without presenting a heuristic score as a verdict.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20SATARK-111827?logo=streamlit&logoColor=white)](https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20SATARK-111827?logo=vercel&logoColor=white)](https://satark-qzym.vercel.app/)
 [![CI](https://github.com/kaustubhdua/Satark/actions/workflows/ci.yml/badge.svg)](https://github.com/kaustubhdua/Satark/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/kaustubhdua/Satark/actions/workflows/codeql.yml/badge.svg)](https://github.com/kaustubhdua/Satark/actions/workflows/codeql.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -33,7 +33,7 @@ SATARK Sentinel is a security-awareness and incident-investigation prototype bui
 - [8. System design and architecture](#8-system-design-and-architecture)
 - [9. Technology stack](#9-technology-stack)
 - [10. Run the project locally](#10-run-the-project-locally)
-- [11. Configure the AI provider](#11-configure-the-ai-provider)
+- [11. Local AI and data handling](#11-local-ai-and-data-handling)
 - [12. Tests and engineering safeguards](#12-tests-and-engineering-safeguards)
 - [13. Security, privacy, and current limitations](#13-security-privacy-and-current-limitations)
 - [14. Roadmap](#14-roadmap)
@@ -51,7 +51,7 @@ SATARK Sentinel is a security-awareness and incident-investigation prototype bui
 
 The central design principle is to keep **observations, model interpretation, uncertainty, and response decisions distinct**. The system should help a person understand what the available evidence supports, what remains unknown, and what should be checked next.
 
-**Current implementation:** a Python/Streamlit application with a Groq integration for supported AI workflows, a deterministic FIRSTLIGHT engine, bounded input-processing helpers, URL-fetching protections, report export, automated tests, and CI/CodeQL workflows.
+**Current implementation:** a Next.js web workspace plus a Python/Streamlit legacy application, a deterministic FIRSTLIGHT engine, a no-key local analysis path, optional self-hosted Ollama summaries, bounded input-processing helpers, report export, automated tests, and CI/CodeQL workflows. The no-key local path is not a malware scanner and is not a substitute for live threat intelligence.
 
 ## 2. The problem
 
@@ -80,7 +80,7 @@ The project follows an **evidence-first, human-reviewed workflow**:
 6. **Decide with a human in the loop** using explicit approval/rejection controls in the FIRSTLIGHT simulation.
 7. **Export or revisit** the resulting report or current-session history where supported.
 
-The product keeps two modes clear: FIRSTLIGHT demonstrates an explainable, deterministic investigation workflow over synthetic data; the scanners help triage suspicious content and may use an external AI provider. These are related parts of one security workflow, but they have different trust and data-handling boundaries.
+The product keeps two modes clear: FIRSTLIGHT demonstrates an explainable, deterministic investigation workflow over synthetic data; the scanners help triage suspicious content with local deterministic checks and optional self-hosted Ollama inference. These are related parts of one security workflow, but they have different trust and data-handling boundaries.
 
 ## 4. Flagship experience: FIRSTLIGHT Incident Command
 
@@ -125,7 +125,7 @@ The existing scanners remain available as supporting workflows.
 
 ### Input limits and optional tools
 
-Input handling applies format-specific bounds before processing. The configured Streamlit upload ceiling is 50 MB; PDF and image processing use stricter per-format limits. Video frame extraction uses OpenCV. Audio extraction/transcription from video additionally depends on FFmpeg being installed and the configured provider supporting the workflow. Exact supported behavior can depend on input format, installed dependencies, and provider availability.
+Input handling applies format-specific bounds before processing. The configured Streamlit upload ceiling is 50 MB; PDF and image processing use stricter per-format limits. Video frame extraction uses OpenCV. Audio extraction/transcription from video additionally depends on FFmpeg and the optional faster-whisper package plus local model weights. Exact behavior depends on input format and available hardware.
 
 ## 6. Example demonstration flow
 
@@ -175,7 +175,7 @@ These are implementation goals and demonstrated prototype behaviors. The reposit
        Deterministic rules                    |
                |                  +-----------+-----------+
        Evidence-linked findings   |                       |
-               |              Local signals          Groq provider
+               |              Local signals          Ollama model
        Timeline + evidence gaps       |                       |
                |                      +-----------+-----------+
        Human-reviewed simulated                  |
@@ -193,7 +193,7 @@ These are implementation goals and demonstrated prototype behaviors. The reposit
 1. **Browser to Streamlit:** browser/UI state is presentation state and is not trusted as durable evidence.
 2. **Input to preprocessing:** uploaded and pasted content is subject to format-specific bounds and validation.
 3. **Server to user-supplied URL:** URL retrieval is an SSRF-sensitive operation. The implementation validates eligible HTTP(S) destinations, checks DNS results, pins connections to validated IPs, revalidates redirects, blocks HTTPS-to-HTTP downgrade redirects, and limits response size/type.
-4. **Application to Groq:** prepared evidence may leave the application when the user explicitly starts a provider-backed AI analysis.
+4. **Application to local model:** prepared evidence is sent only to the operator-controlled Ollama endpoint when local model inference is configured; no hosted AI provider is used.
 5. **Session state to persistence:** current history and FIRSTLIGHT audit events are session-scoped, not durable multi-user case storage.
 
 ### Processing flow for a scanner
@@ -201,7 +201,7 @@ These are implementation goals and demonstrated prototype behaviors. The reposit
 1. User selects a workflow and supplies input.
 2. The relevant input processor validates and bounds the content.
 3. Supported local deterministic signals are extracted where applicable.
-4. If the user requests AI analysis and a valid provider configuration is available, the prepared evidence is sent to Groq.
+4. If a local Ollama model is configured, prepared evidence is sent to that local model; otherwise the deterministic fallback is used.
 5. The result is parsed and normalized before it is shown.
 6. The UI presents the result, relevant signals, limitations, and suggested next steps; supported reports can be exported.
 
@@ -222,7 +222,8 @@ More detail is available in [Architecture and threat model](docs/ARCHITECTURE.md
 | --- | --- |
 | Python | Core application, input processing, rules, orchestration, and tests |
 | Streamlit | Web interface, navigation, and session state |
-| Groq API | Optional AI-assisted text/vision workflows and supported transcription |
+| Ollama | Optional self-hosted text/vision inference without API keys |
+| faster-whisper | Optional local video-audio transcription; model weights are downloaded/cached locally |
 | pypdf | PDF text extraction |
 | Pillow | Image loading and conversion |
 | OpenCV | Video frame extraction |
@@ -235,7 +236,7 @@ More detail is available in [Architecture and threat model](docs/ARCHITECTURE.md
 
 The application is primarily Python/Streamlit. Its styling uses a dedicated CSS layer and native Streamlit UI components rather than requiring a separate React application. Animations are restrained and support reduced-motion preferences.
 
-Model availability and exact model choices are controlled by the configured provider and the model-selection code; provider availability, account access, rate limits, and model deprecations can change independently of this repository.
+Model availability depends on the Ollama service, installed local model weights, available memory, and model compatibility. No third-party AI API key or account is required.
 
 ## 10. Run the project locally
 
@@ -244,8 +245,9 @@ Model availability and exact model choices are controlled by the configured prov
 - Python 3.10 or newer
 - Git
 - Dependencies in requirements.txt
-- A Groq API key only if you want to exercise provider-backed workflows
-- FFmpeg only if you want to test the optional video-audio transcription path
+- Ollama installed locally or on a private network, with a text model pulled (for example qwen2.5:3b)
+- Optional vision model (for example qwen2.5vl:3b) for image analysis
+- FFmpeg and optional faster-whisper for local video-audio transcription
 
 ### Install
 
@@ -274,40 +276,25 @@ Install dependencies and launch the app:
 ~~~bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+# Optional: install local speech-to-text support for video uploads
+python -m pip install -r requirements-local-ai.txt
+# Install Ollama separately, then download the local text and vision models:
+ollama pull qwen2.5:3b
+ollama pull qwen2.5vl:3b
 streamlit run satark.py
 ~~~
 
-Streamlit prints the local URL in the terminal. Open that address in your browser. The built-in FIRSTLIGHT scenario and offline sample are intended to make parts of the prototype explorable without live provider credentials.
+Streamlit prints the local URL in the terminal. Open that address in your browser. The built-in FIRSTLIGHT scenario and local Ollama analysis run without third-party AI credentials. If Ollama is not installed, deterministic FIRSTLIGHT and fallback checks remain available.
 
-## 11. Configure the AI provider
+## 11. Local AI and data handling
 
-SATARK reads GROQ_API_KEY from Streamlit-managed secrets first and can fall back to the environment variable.
+The Next.js analysis route runs local deterministic rules by default. It does not call Groq, URLhaus, AbuseIPDB, or another third-party analysis API. No third-party AI API key is required.
 
-### Windows PowerShell
+To use an AI model, run an Ollama instance you control. The Next.js app uses `SATARK_OLLAMA_BASE_URL` and `SATARK_OLLAMA_MODEL`; the Python/Streamlit app uses `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`) and the local model names configured in `ai_provider.py`. The Compose example uses an internal `http://ollama:11434` service address. Initial model downloads need internet access but no API key; inference is local after download.
 
-~~~powershell
-$env:GROQ_API_KEY="your-key"
-streamlit run satark.py
-~~~
+The Python/Streamlit app now uses the same local Ollama approach; the default requirements no longer include the Groq SDK. The self-hosted Compose image includes local faster-whisper for video-audio transcription. No third-party AI API key is required.
 
-### macOS / Linux
-
-~~~bash
-export GROQ_API_KEY="your-key"
-streamlit run satark.py
-~~~
-
-### Streamlit Community Cloud
-
-In the app's **Settings → Secrets**, add:
-
-~~~toml
-GROQ_API_KEY = "your-key"
-~~~
-
-Use your own key from the official [Groq Console](https://console.groq.com/). Never commit secrets, paste them into issues, or place them in browser-visible code. Use the hosting platform's secret manager for deployed environments. If a key may have been exposed, revoke/rotate it.
-
-**Privacy note:** provider-backed analysis may transmit the prepared input to Groq. Review provider data-handling terms and your own legal/privacy requirements before sending sensitive content. For the current hackathon demo, use synthetic or non-sensitive data.
+See [Local-only deployment](docs/LOCAL_ONLY_DEPLOYMENT.md) for setup and safety boundaries.
 
 ## 12. Tests and engineering safeguards
 
@@ -321,7 +308,7 @@ python -m unittest discover -s tests -v
 
 The test suite covers areas including:
 
-- AI-provider configuration and model selection
+- Local Ollama configuration and model selection
 - Analysis normalization and stable finding behavior
 - FIRSTLIGHT investigation and evidence-ingestion rules
 - Input-processing boundaries and safe error handling
@@ -354,9 +341,9 @@ GitHub Actions also runs dependency/compile/test checks, browser smoke and layou
 - **Session-scoped audit chain:** FIRSTLIGHT's audit chain is a demonstration, not a durable tamper-evident enterprise audit service.
 - **Process-local rate limiting:** the application limiter is not a distributed/global quota and cannot by itself control usage across replicas or restarts.
 - **Hosting-level controls need verification:** request-body limits, concurrency, execution timeouts, egress restrictions, abuse controls, and cost ceilings must be verified at the deployment layer.
-- **Live-provider checks need an authorized test key:** success, timeout, invalid key, unavailable model, malformed response, and rate-limit behavior require target-environment tests.
+- **Local model checks need target-environment validation:** model success, timeout, missing weights, malformed output, and deterministic fallback must be tested on the actual hardware.
 - **Detection quality has not been benchmarked:** precision, recall, false-positive rate, evidence-grounding quality, and latency require a defined dataset and repeatable evaluation.
-- **Privacy and provider review remains necessary:** assess data processing/retention terms and provide appropriate notice, retention/deletion behavior, and incident ownership before handling real user data.
+- **Local model privacy review remains necessary:** secure model logs, cache directories, uploaded evidence, retention/deletion behavior, and incident ownership before handling real user data.
 - **Not a malware sandbox or certified forensic platform:** the app does not execute suspicious files in an isolated environment or guarantee exhaustive inspection.
 
 ### Recommended use right now
@@ -371,7 +358,7 @@ The following is a forward-looking roadmap, not a claim that every item is imple
 
 ### Near-term: demonstration quality and reliability
 - [ ] Complete target-deployment smoke tests against the exact deployed commit.
-- [ ] Test live provider success and failure modes using a dedicated, authorized test key.
+- [ ] Test local Ollama success and failure modes with pinned model revisions on supported hardware.
 - [ ] Expand adversarial tests for malformed/encrypted PDFs, image edge cases, video edge cases, and URL abuse cases.
 - [ ] Keep the README, architecture notes, demo flow, and release sign-off aligned with the actual code.
 
@@ -387,7 +374,7 @@ The following is a forward-looking roadmap, not a claim that every item is imple
 - [ ] Verify restrictive egress policy in the actual hosting environment.
 - [ ] Document incident response, backup/restore, rollback, and ownership.
 - [ ] Establish evaluation metrics for accuracy, false positives, grounding, latency, and robustness.
-- [ ] Complete privacy/provider review before permitting sensitive evidence.
+- [ ] Complete local model privacy and data-retention review before permitting sensitive evidence.
 
 ## 15. Project structure
 
@@ -408,7 +395,7 @@ The following is a forward-looking roadmap, not a claim that every item is imple
 ├── tests/                       # Unit, regression, and smoke tests
 ├── ui/                          # Streamlit workspace modules
 ├── analysis_engine.py            # Analysis normalization and risk logic
-├── ai_provider.py                # Provider configuration/model helpers
+├── ai_provider.py                # Local Ollama compatibility client
 ├── config.py                     # Runtime and processing limits
 ├── evidence_engine.py            # Deterministic signal extraction
 ├── findings.py                   # Finding normalization/contracts
@@ -438,7 +425,7 @@ Use this section as a source for a pitch deck. Adapt it to the event's required 
 
 ### Short abstract
 
-Digital threats often arrive as disconnected messages, links, attachments, and event records. SATARK Sentinel combines FIRSTLIGHT Incident Command—a deterministic investigation workflow over a synthetic account-compromise scenario—with supporting AI-assisted scanners for suspicious text, URLs, images, QR codes, PDFs, and supported videos. It highlights observable signals, evidence references, timelines, and unanswered questions, while keeping human review central to simulated response decisions. The prototype is built with Python and Streamlit, uses Groq for supported AI workflows, and includes regression tests and automated CI checks. It is intended for awareness, demonstration, and triage—not as a replacement for professional incident response or a certified forensic system.
+Digital threats often arrive as disconnected messages, links, attachments, and event records. SATARK Sentinel combines FIRSTLIGHT Incident Command—a deterministic investigation workflow over a synthetic account-compromise scenario—with supporting AI-assisted scanners for suspicious text, URLs, images, QR codes, PDFs, and supported videos. It highlights observable signals, evidence references, timelines, and unanswered questions, while keeping human review central to simulated response decisions. The prototype is built with Python and Streamlit, uses self-hosted Ollama for supported AI workflows, and includes regression tests and automated CI checks. It is intended for awareness, demonstration, and triage—not as a replacement for professional incident response or a certified forensic system.
 
 ### Problem statement
 
@@ -465,7 +452,7 @@ Potential audiences include students learning cyber safety, awareness trainers, 
 
 ### Current status and honest claim boundary
 
-The repository contains a working prototype and automated tests. The live application is available at the demo link above, but deployment revision and all provider-backed paths must be checked in the target environment before claiming a fully verified release. No measured detection benchmark, production multi-tenant security, durable evidence custody, or real response integration is claimed.
+The repository contains a working prototype and automated tests. The live application is available at the demo link above, but deployment revision and all local-model paths must be checked in the target environment before claiming a fully verified release. No measured detection benchmark, production multi-tenant security, durable evidence custody, or real response integration is claimed.
 
 ## 17. Contributing
 
