@@ -30,3 +30,19 @@ export function buildHealthSnapshot(env = {}) {
     note: 'Configuration snapshot only. This endpoint does not probe model, database, or Redis connectivity, prove tenant isolation, or validate rate-limit behavior. On Vercel, analysis requires a configured shared limiter; process-local limits are for local development only. Deterministic analysis requires no third-party AI API key.',
   };
 }
+
+/** Describe the rate-limit configuration without implying that a missing shared limiter is active locally. */
+export function describeRateLimitStatus(rateLimit) {
+  switch (rateLimit?.mode) {
+    case 'shared-upstash':
+      return 'Shared rate limiting is configured; live Redis connectivity is not verified by this configuration snapshot.';
+    case 'shared-required':
+      return 'Shared rate limiting is not configured; production analysis is disabled and fails closed until it is.';
+    case 'misconfigured':
+      return 'Shared rate limiting configuration is incomplete; production analysis is disabled and fails closed until it is corrected.';
+    case 'in-process':
+      return 'Rate limiting is process-local, not shared across instances; configure shared limiting before public exposure.';
+    default:
+      return 'Rate-limit status is unknown; verify shared limiting before relying on this service.';
+  }
+}
