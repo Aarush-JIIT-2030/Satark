@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildHealthSnapshot } from '../src/lib/health-snapshot.mjs';
+import { buildHealthSnapshot, describeRateLimitStatus } from '../src/lib/health-snapshot.mjs';
 
 test('health snapshot never claims full readiness and exposes non-shared rate limiting', () => {
   const snapshot = buildHealthSnapshot({});
@@ -46,4 +46,23 @@ test('shared rate limit configuration is reported without claiming connectivity'
   assert.equal(configured.checks.rateLimit.configured, true);
   assert.equal(configured.checks.rateLimit.sharedAcrossInstances, true);
   assert.equal(configured.checks.rateLimit.connectivityVerified, false);
+});
+
+
+test('rate-limit status copy distinguishes fail-closed production from local-only limiting', () => {
+  const production = buildHealthSnapshot({ VERCEL: '1' });
+  assert.match(describeRateLimitStatus(production.checks.rateLimit), /production analysis is disabled and fails closed/i);
+
+  const partial = buildHealthSnapshot({ VERCEL: '1', UPSTASH_REDIS_REST_URL: 'https://redis.example.com' });
+  assert.match(describeRateLimitStatus(partial.checks.rateLimit), /configuration is incomplete/i);
+
+  const local = buildHealthSnapshot({});
+  assert.match(describeRateLimitStatus(local.checks.rateLimit), /process-local, not shared/i);
+
+  const configured = buildHealthSnapshot({
+    VERCEL: '1',
+    UPSTASH_REDIS_REST_URL: 'https://redis.example.com',
+    UPSTASH_REDIS_REST_TOKEN: 'test-token',
+  });
+  assert.match(describeRateLimitStatus(configured.checks.rateLimit), /live Redis connectivity is not verified/i);
 });

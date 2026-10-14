@@ -38,6 +38,8 @@ const routes = [
   { path: '/', heading: /SATARK|SENTINEL/i },
   { path: '/investigate', heading: /investigate|analysis|suspicious/i },
   { path: '/image-review', heading: /image review|inspect the image|image metadata/i },
+  { path: '/tools', heading: /every tool|capability directory/i },
+  { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
   { path: '/learn', heading: /learn|safety/i },
@@ -125,6 +127,18 @@ async function inspectViewport(viewport, label) {
       `${label}: skip link should be the first keyboard focus target on ${route.path}`);
     const bodyText = await page.locator('body').innerText();
     assert.match(bodyText, route.heading, `${label}: expected route content missing at ${route.path}`);
+    if (route.path === '/') {
+      const disclosure = page.locator('.tools-disclosure');
+      // Force the disclosure into its expanded state instead of toggling it.
+      // A click is state-dependent and can accidentally close it if browser
+      // state or a prior interaction already left it open.
+      await disclosure.evaluate(element => { element.open = true; });
+      const qrLink = page.getByRole('link', { name: /open qr decoder/i });
+      assert.equal(await qrLink.getAttribute('href'), '/qr', 'home QR capability must open the implemented local decoder');
+      const qrCard = disclosure.locator('.tool-card').filter({ hasText: 'QR-code investigation' });
+      assert.match((await qrCard.textContent()) || '', /cross-browser decoding and destination inspection are not yet available/i,
+        'home QR copy must disclose remaining capability limits');
+    }
     if (route.path !== '/') {
       assert.equal(await page.locator('.nav-links a[aria-current="page"]').count(), 1,
         `${label}: exactly one current navigation link expected at ${route.path}`);

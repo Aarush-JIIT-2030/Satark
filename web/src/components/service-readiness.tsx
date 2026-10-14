@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { describeRateLimitStatus } from '../lib/health-snapshot.mjs';
 
 type Health = {
   status: 'configuration-only';
@@ -66,9 +67,7 @@ export default function ServiceReadiness() {
         {health.checks.persistentStorage.configured
           ? ' Storage credentials are configured, but database connectivity and tenant authorization are not verified.'
           : ' Persistent case/evidence storage is not configured in this deployment.'}
-        {!health.checks.rateLimit.sharedAcrossInstances
-          ? ' Rate limiting is per instance, not shared; apply host-level abuse controls before public exposure.'
-          : ''}
+        {' '}{describeRateLimitStatus(health.checks.rateLimit)}
       </small>
     </span>
   </div>;
