@@ -1,0 +1,44 @@
+import SiteHeader from '../site-header';
+
+const capabilities = [
+  { id: 'text', number: '01', title: 'Text & message triage', status: 'Available · production dependency currently blocks analysis', detail: 'The Next.js API runs deterministic local checks and can optionally use a self-hosted Ollama model. Shared rate limiting must be configured before production analysis can run.', href: '/investigate', action: 'Open investigation' },
+  { id: 'url', number: '02', title: 'URL inspection', status: 'Partial · currently treated as input text', detail: 'The original Python application has hardened public-URL fetching. The complete legacy fetch-and-analyze chain is not yet established in this workspace.', href: '/investigate', action: 'Open investigation' },
+  { id: 'image', number: '03', title: 'Image metadata & integrity', status: 'Available · local inspection', detail: 'Inspect supported metadata and calculate a local SHA-256 fingerprint. This is not a deepfake verdict or a visual threat scan.', href: '/image-review', action: 'Open image review' },
+  { id: 'qr', number: '04', title: 'QR-code investigation', status: 'Not migrated', detail: 'The legacy image workflow documents QR inspection, but this web workspace does not yet provide a complete decode, payload review and safe destination inspection workflow.', href: null, action: null },
+  { id: 'pdf', number: '05', title: 'PDF & document analysis', status: 'Not migrated', detail: 'Legacy bounded PDF text extraction exists. The web app still needs safe extraction and analysis with clear scanned, encrypted, malformed and unsupported-file states.', href: null, action: null },
+  { id: 'video', number: '06', title: 'Video & media analysis', status: 'Not migrated', detail: 'Legacy code samples representative frames and optionally transcribes audio. A complete web flow needs bounded isolated processing and honest sampling limitations.', href: null, action: null },
+  { id: 'intel', number: '07', title: 'Threat intelligence', status: 'Partial · local IOC cache requires approved feed data', detail: 'No match must never mean safe. A useful result needs source provenance, version, freshness and distinct unavailable/no-match/match states.', href: '/investigate', action: 'View analysis' },
+  { id: 'firstlight', number: '08', title: 'FIRSTLIGHT incident command', status: 'Training available · persistence needs end-to-end verification', detail: 'Review synthetic evidence, findings, event timelines and simulated response decisions. Simulation controls do not execute real containment actions.', href: '/firstlight', action: 'Open FIRSTLIGHT' },
+  { id: 'reports', number: '09', title: 'Reports & saved cases', status: 'Partial · authenticated journey requires acceptance tests', detail: 'Local TXT/JSON export and persistent-report code exist. Full PDF export and end-to-end case reconciliation are not yet established.', href: '/reports', action: 'Open reports' },
+  { id: 'learn', number: '10', title: 'Security learning', status: 'Available · educational only', detail: 'Practice with synthetic scam-awareness examples. The visual code-entry demo does not authenticate an account or verify an OTP.', href: '/learn', action: 'Open learning' },
+];
+
+export default function ToolsPage() {
+  return (
+    <main className="shell">
+      <SiteHeader />
+      <div className="container subpage" id="main-content" tabIndex={-1}>
+        <div className="eyebrow">WORKSPACE / CAPABILITY DIRECTORY</div>
+        <h1>Every tool, with its real status.</h1>
+        <p className="lead">SATARK includes legacy Python scanners and a newer Next.js workspace. This directory distinguishes what can be opened today from capabilities that still need migration. A legacy implementation is not the same as a working web feature.</p>
+        <div className="workspace-grid">
+          {capabilities.map((item) => (
+            <article className="workspace-card" id={item.id} key={item.id}>
+              <div className="eyebrow">{item.number} / CAPABILITY</div>
+              <h2>{item.title}</h2>
+              <p><strong>{item.status}</strong></p>
+              <p>{item.detail}</p>
+              {item.href ? <a className="btn btn-secondary" href={item.href}>{item.action} <span aria-hidden="true">↗</span></a> : <span className="pill">Migration required</span>}
+            </article>
+          ))}
+        </div>
+        <section className="panel" aria-labelledby="migration-heading">
+          <div className="eyebrow">ENGINEERING PLAN</div>
+          <h2 id="migration-heading">Restore the missing workflows</h2>
+          <p>The feature-by-feature migration matrix defines implementation boundaries, required security controls, dependencies and acceptance tests.</p>
+          <a className="btn btn-primary" href="https://github.com/kaustubhdua/Satark/blob/main/docs/SECURITY_TOOL_PARITY_MATRIX.md">Read the security-tool parity matrix <span aria-hidden="true">↗</span></a>
+        </section>
+      </div>
+    </main>
+  );
+}
