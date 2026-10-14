@@ -38,6 +38,8 @@ const routes = [
   { path: '/', heading: /SATARK|SENTINEL/i },
   { path: '/investigate', heading: /investigate|analysis|suspicious/i },
   { path: '/image-review', heading: /image review|inspect the image|image metadata/i },
+  { path: '/tools', heading: /every tool|capability directory/i },
+  { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
   { path: '/learn', heading: /learn|safety/i },
