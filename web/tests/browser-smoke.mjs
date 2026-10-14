@@ -129,7 +129,10 @@ async function inspectViewport(viewport, label) {
     assert.match(bodyText, route.heading, `${label}: expected route content missing at ${route.path}`);
     if (route.path === '/') {
       const disclosure = page.locator('.tools-disclosure');
-      await disclosure.locator('summary').click();
+      // Force the disclosure into its expanded state instead of toggling it.
+      // A click is state-dependent and can accidentally close it if browser
+      // state or a prior interaction already left it open.
+      await disclosure.evaluate(element => { element.open = true; });
       const qrLink = page.getByRole('link', { name: /open qr decoder/i });
       assert.equal(await qrLink.getAttribute('href'), '/qr', 'home QR capability must open the implemented local decoder');
       assert.match(await disclosure.innerText(), /cross-browser decoding and destination inspection are not yet available/i,
