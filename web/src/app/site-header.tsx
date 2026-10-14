@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const links = [
   { href: '/investigate', label: 'Investigate' },
+  { href: '/tools', label: 'Tools' },
   { href: '/image-review', label: 'Image review' },
   { href: '/firstlight', label: 'FIRSTLIGHT' },
   { href: '/reports', label: 'Reports' },
@@ -25,7 +26,7 @@ export default function SiteHeader({ status = false }: { status?: boolean }) {
         </Link>
         <nav className="nav-links" aria-label="Main navigation">
           {links.map(link => {
-            const active = pathname === link.href || (link.href === '/firstlight' && pathname.startsWith('/firstlight/'));
+            const active = pathname === link.href || (link.href === '/firstlight' && pathname.startsWith('/firstlight/')) || (link.href === '/tools' && pathname === '/qr');
             return (
               <Link key={link.href} href={link.href} className={active ? 'active' : undefined}
                 aria-current={active ? 'page' : undefined}>
