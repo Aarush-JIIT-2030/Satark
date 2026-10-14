@@ -19,6 +19,7 @@ const routes = [
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
   { path: '/learn', heading: /learn|safety/i },
+  { path: '/login', heading: /investigations that|welcome back/i },
 ];
 
 async function inspectViewport(viewport, label) {
@@ -129,6 +130,11 @@ async function inspectViewport(viewport, label) {
       await input.fill('');
       assert.equal(await analyzeButton.isDisabled(), true, 'investigation should disable again when cleared');
     }
+    if (route.path === '/login') {
+      assert.equal(await page.getByLabel('Email address').isVisible(), true, 'workspace sign-in email must be labelled and visible');
+      assert.equal(await page.getByLabel('Password').isVisible(), true, 'workspace sign-in password must be labelled and visible');
+      assert.equal(await page.getByRole('button', { name: 'Sign in securely' }).isVisible(), true, 'workspace sign-in action must be accessible');
+    }
     if (route.path === '/reports') {
       const notes = page.getByLabel('Review notes');
       const exportButton = page.getByRole('button', { name: /export notes.*txt/i });
@@ -213,9 +219,17 @@ async function inspectViewport(viewport, label) {
       await launch.waitFor();
       await launch.click();
       await page.getByRole('heading', { name: /artifacts & integrity/i }).waitFor();
+      await page.locator('.incident-content .panel').evaluate(async element => {
+        await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+      });
       assert.equal(await page.locator('.evidence-table tbody tr').count(), 5, 'training case should load five evidence records');
 
       const tamper = page.getByRole('button', { name: /simulate tamper/i }).first();
+      await tamper.evaluate(element => {
+        const tableViewport = element.closest('.table-wrap');
+        if (tableViewport) tableViewport.scrollLeft = tableViewport.scrollWidth;
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+      });
       await tamper.click();
       await page.getByText('MISMATCH').first().waitFor();
       await page.getByRole('button', { name: /restore demo/i }).first().click();
