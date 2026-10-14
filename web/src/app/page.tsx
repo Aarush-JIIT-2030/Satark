@@ -8,7 +8,7 @@ const tools = [
   ['01', 'Text & message triage', 'Spot pressure tactics, impersonation cues and risky requests.', '/investigate', 'OPEN ANALYSIS'],
   ['02', 'URL review', 'Review a URL as text without automatically visiting it.', '/investigate', 'OPEN ANALYSIS'],
   ['03', 'Image metadata & integrity', 'Inspect supported metadata markers and calculate a SHA-256 fingerprint locally. Not a deepfake verdict.', '/image-review', 'OPEN IMAGE REVIEW'],
-  ['04', 'QR-code investigation', 'QR payload analysis is not yet ported to this web workspace. See current status and migration plan.', '/tools#qr', 'VIEW STATUS'],
+  ['04', 'QR-code investigation', 'Decode QR payloads locally in supported browsers; cross-browser decoding and destination inspection are not yet available.', '/qr', 'OPEN QR DECODER'],
   ['05', 'PDF & document review', 'A sandboxed local document pipeline is not yet available here. See current status and migration plan.', '/tools#pdf', 'VIEW STATUS'],
   ['06', 'Video & media signals', 'Video processing and provenance checks are not yet migrated. See current status and migration plan.', '/tools#video', 'VIEW STATUS'],
   ['07', 'Persistent history & exports', 'Review reports here; durable case history requires a configured workspace database.', '/reports', 'OPEN REPORTS'],
