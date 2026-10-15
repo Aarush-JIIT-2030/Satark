@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
     "test:ci": "npm run typecheck && npm test && npm run build",
-    "test:integration": "node --test tests/tenant-isolation.integration.test.mjs"
+    "test:integration": "node --test tests/tenant-isolation.integration.test.mjs",
+    "test:browser": "node tests/browser-smoke.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.14",

@@ -133,3 +133,141 @@ jobs:
           if bad:
               raise SystemExit('\\n'.join(bad))
           PY
+
+  web-validation:
+    name: Next.js web validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Verify lockfile exists
+        run: test -s package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Typecheck, test and build Next.js app
+        run: npm run test:ci
+
+  web-tenant-integration:
+    name: Supabase tenant-isolation integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    env:
+      SUPABASE_URL: ${{ secrets.SATARK_TEST_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SATARK_TEST_SUPABASE_PUBLISHABLE_KEY }}
+      SATARK_TEST_USER_A_EMAIL: ${{ secrets.SATARK_TEST_USER_A_EMAIL }}
+      SATARK_TEST_USER_A_PASSWORD: ${{ secrets.SATARK_TEST_USER_A_PASSWORD }}
+      SATARK_TEST_TENANT_A_ID: ${{ secrets.SATARK_TEST_TENANT_A_ID }}
+      SATARK_TEST_USER_B_EMAIL: ${{ secrets.SATARK_TEST_USER_B_EMAIL }}
+      SATARK_TEST_USER_B_PASSWORD: ${{ secrets.SATARK_TEST_USER_B_PASSWORD }}
+      SATARK_TEST_TENANT_B_ID: ${{ secrets.SATARK_TEST_TENANT_B_ID }}
+      SATARK_TEST_VIEWER_EMAIL: ${{ secrets.SATARK_TEST_VIEWER_EMAIL }}
+      SATARK_TEST_VIEWER_PASSWORD: ${{ secrets.SATARK_TEST_VIEWER_PASSWORD }}
+      SATARK_TEST_VIEWER_TENANT_ID: ${{ secrets.SATARK_TEST_VIEWER_TENANT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Require dedicated least-privilege test accounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SATARK_TEST_USER_A_EMAIL SATARK_TEST_USER_A_PASSWORD SATARK_TEST_TENANT_A_ID SATARK_TEST_USER_B_EMAIL SATARK_TEST_USER_B_PASSWORD SATARK_TEST_TENANT_B_ID SATARK_TEST_VIEWER_EMAIL SATARK_TEST_VIEWER_PASSWORD SATARK_TEST_VIEWER_TENANT_ID)
+          missing=()
+          for key in "${required[@]}"; do
+            if [[ -z "${!key:-}" ]]; then missing+=("$key"); fi
+          done
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing required repository Actions secrets for real tenant-isolation tests: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Run real Supabase tenant and role isolation tests
+        run: npm run test:integration
+
+  web-browser-acceptance:
+    name: Next.js production browser and accessibility smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Start production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/satark-web.log 2>&1 &
+          echo $! > /tmp/satark-web.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/satark-web.log
+          exit 1
+
+      - name: Audit production routes, security headers and accessibility
+        env:
+          SATARK_WEB_URL: http://127.0.0.1:3000
+          SATARK_WEB_ARTIFACTS: artifacts/web
+        run: npm run test:browser
+
+      - name: Upload browser artifacts and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: satark-next-production-browser
+          path: |
+            web/artifacts/web/
+            /tmp/satark-web.log
+          if-no-files-found: warn
+
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -f /tmp/satark-web.pid ]; then kill "$(cat /tmp/satark-web.pid)" || true; fi
