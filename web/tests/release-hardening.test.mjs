@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 
 const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8');
 const analyze = readFileSync(new URL('../src/app/api/analyze/route.ts', import.meta.url), 'utf8');
+const rateLimit = readFileSync(new URL('../src/lib/rate-limit.mjs', import.meta.url), 'utf8');
 const reports = readFileSync(new URL('../src/app/reports/page.tsx', import.meta.url), 'utf8');
 const firstlight = readFileSync(new URL('../src/app/firstlight/page.tsx', import.meta.url), 'utf8');
 const securityFollowup = readFileSync(new URL('../docs/SECURITY_AND_UX_FOLLOWUP.md', import.meta.url), 'utf8');
@@ -39,17 +40,22 @@ test('baseline security headers and CSP directives are configured', () => {
   assert.match(config, /form-action 'self'/);
 });
 
-test('independent reputation lookups execute concurrently', () => {
-  assert.match(analyze, /Promise\.all\(\[/);
-  assert.match(analyze, /checkUrlhaus\(input, shareWithThreatIntel\)/);
-  assert.match(analyze, /checkAbuseIpDb\(input, shareIpWithThreatIntel\)/);
+test('analysis route uses only local analysis and has no third-party provider calls', () => {
+  assert.match(analyze, /analyzeWithLocalModel\(input\.trim\(\)\)/);
+  assert.doesNotMatch(analyze, /api\.groq\.com|urlhaus-api\.abuse\.ch|api\.abuseipdb\.com/);
+  assert.match(homePage, /No third-party AI key is required/);
+  assert.match(homePage, /href=\"\/investigate\"/);
 });
 
-test('reports exports only user-authored notes in TXT and versioned JSON', () => {
+test('reports exports notes with an optional validated session analysis snapshot', () => {
   assert.match(reports, /satark-review-notes\.txt/);
   assert.match(reports, /satark-review-notes\.json/);
   assert.match(reports, /schema_version: 1/);
-  assert.match(reports, /No analysis results or provider evidence are automatically included/);
+  assert.match(reports, /analysis_snapshot: savedAnalysis/);
+  assert.match(reports, /submitted_source_text_saved: false/);
+  assert.match(reports, /sessionStorage/);
+  assert.match(reports, /This export is not a certified forensic report or a verified chain-of-custody record/);
+  assert.match(investigatePage, /satark:last-analysis:v1/);
 });
 
 test('FIRSTLIGHT explicitly marks response actions as simulation only', () => {
@@ -60,9 +66,10 @@ test('FIRSTLIGHT explicitly marks response actions as simulation only', () => {
 
 
 test('per-instance throttling does not trust spoofable x-forwarded-for', () => {
-  assert.match(analyze, /request\.headers\.get\('x-real-ip'\)/);
-  assert.doesNotMatch(analyze, /request\.headers\.get\('x-forwarded-for'\)\?\.split\(', '\)\[0\]/);
-  assert.match(analyze, /all requests share[\s\S]*?'unknown' bucket/);
+  assert.match(rateLimit, /request\.headers\.get\('x-real-ip'\)/);
+  assert.doesNotMatch(rateLimit, /request\.headers\.get\('x-forwarded-for'\)\?\.split\(', '\)\[0\]/);
+  assert.match(analyze, /await checkAnalysisRateLimit\(request\)/);
+  assert.match(rateLimit, /\|\| 'unknown'/);
 });
 
 test('all API responses have an explicit no-store cache policy', () => {
@@ -92,8 +99,8 @@ test('URLhaus URL sanitizer strips query and fragment values before sharing', as
     'URLs containing embedded credentials must not be shared');
   assert.equal(extractFirstHttpUrl('No URL was supplied'), null);
   const investigate = readFileSync(new URL('../src/app/investigate/page.tsx', import.meta.url), 'utf8');
-  assert.match(investigate, /query strings and fragments are removed first/);
-  assert.match(investigate, /Paths can still contain private identifiers/);
+  assert.match(investigate, /No third-party AI or reputation API is called in local-only mode/i);
+  assert.doesNotMatch(investigate, /query strings and fragments are removed first/);
 });
 
 test('URLhaus provider references cannot create off-site or unsafe links', async () => {
@@ -133,26 +140,25 @@ test('provider JSON responses are parsed within a strict byte budget', async () 
   );
 });
 
-test('analysis route uses the bounded provider response reader', () => {
-  assert.match(analyze, /MAX_PROVIDER_RESPONSE_BYTES = 64 \* 1024/);
-  assert.match(analyze, /readJsonWithinLimit\(upstream, MAX_PROVIDER_RESPONSE_BYTES\)/);
+test('analysis route validates bounded local input and never calls a provider', () => {
+  assert.match(analyze, /MAX_BODY_BYTES = 48 \* 1024/);
+  assert.match(analyze, /MAX_INPUT_CHARS = 12_000/);
+  assert.match(analyze, /analyzeWithLocalModel/);
   assert.doesNotMatch(analyze, /await upstream\.json\(\)/);
 });
 
 
-test('all external provider JSON responses are read within a strict byte budget', () => {
-  assert.equal((analyze.match(/readJsonWithinLimit\(response, MAX_THREAT_INTEL_RESPONSE_BYTES\)/g) || []).length, 2,
-    'AbuseIPDB and URLhaus responses must both use the bounded reader');
-  assert.match(analyze, /MAX_THREAT_INTEL_RESPONSE_BYTES = 32 \* 1024/);
-  assert.doesNotMatch(analyze, /await response\.json\(\)/);
+test('default analysis API contains no external provider response parsing', () => {
+  assert.doesNotMatch(analyze, /MAX_THREAT_INTEL_RESPONSE_BYTES|readJsonWithinLimit/);
+  assert.doesNotMatch(analyze, /await response\.json\(\)|fetch\(['"]https?:/);
 });
 
 
-test('developer privacy notice matches URLhaus URL sanitization behavior', () => {
-  assert.match(securityFollowup, /URLhaus receives the first extracted HTTP\(S\) URL only when the user checks the opt-in control/);
-  assert.match(securityFollowup, /removes query strings and fragments before sharing/);
-  assert.match(securityFollowup, /path can still contain identifiers or other sensitive data/);
-  assert.doesNotMatch(securityFollowup, /including its path and query string/);
+test('local deployment guide documents no third-party analysis API dependency', () => {
+  const localGuide = readFileSync(new URL('../../docs/LOCAL_ONLY_DEPLOYMENT.md', import.meta.url), 'utf8');
+  assert.match(localGuide, /does not call Groq, URLhaus, AbuseIPDB/);
+  assert.match(localGuide, /no API key is required/i);
+  assert.match(localGuide, /not an antivirus/i);
 });
 
 
@@ -171,17 +177,14 @@ test('production smoke check fails closed when deployment revision is stale', ()
 });
 
 
-test('analysis pages disclose AI provider data sharing', () => {
-  assert.match(homePage, /text you submit is sent to Groq/i);
-  assert.match(investigatePage, /full text is sent to Groq/i);
-  assert.match(homePage, /separate optional lookups/i);
-  assert.match(investigatePage, /separate optional lookups/i);
-});
-
-test('homepage URLhaus consent describes query and fragment removal', () => {
-  assert.match(homePage, /query strings and fragments are removed first/);
-  assert.match(homePage, /Paths can still contain private identifiers/);
-  assert.doesNotMatch(homePage, /full extracted URL, including its path and query string, is shared/i);
+test('analysis pages disclose local-only processing and no third-party AI sharing', () => {
+  assert.match(homePage, /Local deterministic checks by default/i);
+  assert.match(homePage, /No third-party AI key is required/i);
+  assert.match(homePage, /href=\"\/investigate\"/);
+  assert.doesNotMatch(homePage, /result\.notice|Local threat-intelligence cache/);
+  assert.match(investigatePage, /No third-party AI or reputation API is called in local-only mode/i);
+  assert.doesNotMatch(homePage, /text you submit is sent to Groq/i);
+  assert.doesNotMatch(investigatePage, /full text is sent to Groq/i);
 });
 
 

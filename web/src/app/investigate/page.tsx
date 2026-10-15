@@ -2,7 +2,10 @@
 
 import SiteHeader from '../site-header';
 import { LatticeLoader, ThoughtLine } from '../../components/react-bits';
+import ServiceReadiness from '../../components/service-readiness';
 import { useState } from 'react';
+
+const LAST_ANALYSIS_KEY = 'satark:last-analysis:v1';
 
 type ThreatIntel = { status: string; source: string; detail: string; reference?: string };
 type Analysis = {
@@ -15,8 +18,30 @@ type Analysis = {
   deterministic_signals: string[];
   model: string;
   notice: string;
+  model_suggestions?: {
+    summary: string;
+    key_indicators: string[];
+    recommendations: string[];
+    verification_status: 'unverified';
+    model: string;
+  };
   threat_intel?: ThreatIntel;
   ip_threat_intel?: ThreatIntel;
+  local_ioc_cache?: {
+    status: string;
+    fresh_sources: number;
+    stale_sources: number;
+    matches: Array<{
+      type: string;
+      evidence: string;
+      source: string;
+      source_id: string;
+      source_url: string;
+      source_license: string;
+      source_version: string;
+      last_successful_sync: string;
+    }>;
+  };
 };
 
 export default function InvestigatePage() {
@@ -24,8 +49,6 @@ export default function InvestigatePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Analysis | null>(null);
-  const [shareWithThreatIntel, setShareWithThreatIntel] = useState(false);
-  const [shareIpWithThreatIntel, setShareIpWithThreatIntel] = useState(false);
 
   async function run() {
     const trimmed = input.trim();
@@ -41,7 +64,7 @@ export default function InvestigatePage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ input: trimmed, shareWithThreatIntel, shareIpWithThreatIntel }),
+        body: JSON.stringify({ input: trimmed }),
       });
       const data: unknown = (response.headers.get('content-type') || '').includes('application/json')
         ? await response.json()
@@ -72,12 +95,25 @@ export default function InvestigatePage() {
         !Array.isArray(candidate.deterministic_signals) ||
         typeof candidate.model !== 'string' ||
         typeof candidate.notice !== 'string' ||
+        (candidate.model_suggestions !== undefined && (!candidate.model_suggestions || typeof candidate.model_suggestions !== 'object' || typeof candidate.model_suggestions.summary !== 'string' || !Array.isArray(candidate.model_suggestions.key_indicators) || !Array.isArray(candidate.model_suggestions.recommendations) || candidate.model_suggestions.verification_status !== 'unverified' || typeof candidate.model_suggestions.model !== 'string')) ||
         (candidate.threat_intel !== undefined && (!candidate.threat_intel || typeof candidate.threat_intel !== 'object' || typeof candidate.threat_intel.status !== 'string' || typeof candidate.threat_intel.detail !== 'string')) ||
         (candidate.ip_threat_intel !== undefined && (!candidate.ip_threat_intel || typeof candidate.ip_threat_intel !== 'object' || typeof candidate.ip_threat_intel.status !== 'string' || typeof candidate.ip_threat_intel.detail !== 'string'))
       ) {
         throw new Error('The analysis service returned an incomplete result. Please retry.');
       }
-      setResult(candidate as Analysis);
+      const verifiedResult = candidate as Analysis;
+      setResult(verifiedResult);
+      // Session-only snapshot: never persist the submitted source text.
+      try {
+        window.sessionStorage.setItem(LAST_ANALYSIS_KEY, JSON.stringify({
+          schema_version: 1,
+          created_at: new Date().toISOString(),
+          // Keep model-generated suggestions out of the session snapshot.
+          analysis: { ...verifiedResult, model_suggestions: undefined },
+        }));
+      } catch {
+        // Keep the analysis usable if browser storage is blocked or full.
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not complete analysis.');
     } finally {
@@ -89,39 +125,57 @@ export default function InvestigatePage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
+        <ServiceReadiness />
         <div className="eyebrow">WORKSPACE / INVESTIGATE</div>
         <h1>Start with the evidence.</h1>
-        <p className="lead">Submit a suspicious message or URL as text. SATARK combines AI-assisted triage with basic deterministic signals. It will not visit the URL or execute files.</p>
+        <p className="lead">Submit a suspicious message or URL as text. SATARK runs local deterministic checks and can use an optional self-hosted Ollama model. It will not visit the URL or execute files.</p>
         <section className="form-panel" aria-labelledby="investigation-title">
           <h2 id="investigation-title">New investigation</h2>
-          <p className="field-note">When you submit, the full text is sent to Groq for AI-assisted triage. Use only content you are permitted to share; never include passwords, OTPs, private keys, or other secrets. URLhaus and AbuseIPDB are separate optional lookups and receive only the extracted URL or public IP when you opt in and the server enables them.</p>
+          <p className="field-note">Analysis defaults to local-only rules. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
           <label htmlFor="content">Suspicious URL or message</label>
           <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }}
             maxLength={12000} placeholder="Paste a suspicious URL or message here…" aria-describedby="content-hint" />
-          <label className="intel-consent"><input type="checkbox" checked={shareWithThreatIntel} onChange={event => setShareWithThreatIntel(event.target.checked)} /> Also check the extracted URL against URLhaus. If enabled on the server, the URL origin and path are shared with this external service; query strings and fragments are removed first. Paths can still contain private identifiers, so do not submit private or signed URLs. This is optional.</label>
-          <label className="intel-consent"><input type="checkbox" checked={shareIpWithThreatIntel} onChange={event => setShareIpWithThreatIntel(event.target.checked)} /> Also check a literal IP address against AbuseIPDB. If enabled on the server, the extracted IP address is shared with this external service. Domains and arbitrary text are not queried. This is optional.</label>
           <div className="form-bottom">
             <span className="hint" id="content-hint" aria-live="polite">{input.length.toLocaleString()} / 12,000 characters</span>
             <button className="btn btn-primary" onClick={run} disabled={busy || !input.trim()}>
               {busy ? 'Analyzing…' : 'Analyze content →'}
             </button>
           </div>
-          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c9f36b" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking deterministic signals", "Requesting AI-assisted triage"]} working={busy} color="#c9f36b" fontSize={13} shimmer /></div>}
+          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c9f36b" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking local rules", "Using self-hosted model if configured"]} working={busy} color="#c9f36b" fontSize={13} shimmer /></div>}
           {error && <div className="result error" role="alert">{error}</div>}
           {result && <section className="analysis-result" aria-live="polite" aria-labelledby="analysis-result-title">
             <div className="result-top">
               <span className="pill">{result.threat_category}</span>
-              <strong id="analysis-result-title">Risk signal: {result.risk_score}/100</strong>
+              <strong id="analysis-result-title">Heuristic priority: {result.risk_score}/100</strong>
             </div>
-            <p>{result.summary}</p>
+            <p>{result.summary}</p><p className="field-note">{result.notice}</p>
+            {result.model_suggestions && <div className="notice-panel" aria-label="Unverified local-model suggestions">
+              <h3>Unverified local-model suggestions</h3>
+              <p>These suggestions are generated by an optional self-hosted model and are not verified findings. Deterministic signals, the summary and recommended next steps remain authoritative.</p>
+              <p>{result.model_suggestions.summary}</p>
+              {result.model_suggestions.key_indicators.length > 0 && <ul>{result.model_suggestions.key_indicators.map((item, index) => <li key={'model-indicator-' + index}>{item}</li>)}</ul>}
+              {result.model_suggestions.recommendations.length > 0 && <ul>{result.model_suggestions.recommendations.map((item, index) => <li key={'model-recommendation-' + index}>{item}</li>)}</ul>}
+              <p className="hint">Source: {result.model_suggestions.model} · Status: unverified</p>
+            </div>}
+            {result.threat_intel && <div className="notice-panel" aria-label="Local threat-intelligence status">
+              <h3>Local threat-intelligence cache</h3>
+              <p><strong>Status: {result.threat_intel.status.replace(/_/g, ' ')}</strong> — {result.threat_intel.detail}</p>
+              {result.local_ioc_cache && <p className="hint">{result.local_ioc_cache.fresh_sources} fresh source(s) · {result.local_ioc_cache.stale_sources} stale source(s)</p>}
+              {result.local_ioc_cache?.matches.map((match, index) => <div className="evidence" key={match.source_id + ':' + match.type + ':' + index}>
+                <div className="evidence-icon" aria-hidden="true">!</div>
+                <div className="evidence-copy">
+                  <strong>{match.source} · {match.type} match</strong>
+                  <small>Indicator: {match.evidence} · Version: {match.source_version} · Last sync: {match.last_successful_sync}</small>
+                  <small>License: {match.source_license} · Source: {match.source_url}</small>
+                </div>
+              </div>)}
+            </div>}
             {result.deterministic_signals.length > 0 && <><h3>Deterministic signals</h3><ul>{result.deterministic_signals.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-            <h3>AI-identified indicators</h3>
+            <h3>Indicators and context</h3>
             <ul>{result.key_indicators.map((item, index) => <li key={index}>{item}</li>)}</ul>
             <h3>Recommended next steps</h3>
             <ul>{result.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul>
             {result.limitations.length > 0 && <><h3>Limitations</h3><ul>{result.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
-            {result.threat_intel && <div className="threat-intel-result"><h3>URL reputation · {result.threat_intel.source}</h3><p><strong>{result.threat_intel.status.replaceAll('_', ' ')}</strong> — {result.threat_intel.detail}</p>{result.threat_intel.reference && <a href={result.threat_intel.reference} target="_blank" rel="noreferrer">Open URLhaus reference ↗</a>}</div>}
-            {result.ip_threat_intel && <div className="threat-intel-result"><h3>IP reputation · {result.ip_threat_intel.source}</h3><p><strong>{result.ip_threat_intel.status.replaceAll('_', ' ')}</strong> — {result.ip_threat_intel.detail}</p>{result.ip_threat_intel.reference && <a href={result.ip_threat_intel.reference} target="_blank" rel="noreferrer">Open AbuseIPDB reference ↗</a>}</div>}
             <p className="hint">{result.notice} · Model: {result.model}</p>
           </section>}
         </section>

@@ -1,21 +1,49 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 
+const require = createRequire(import.meta.url);
+const axePath = require.resolve('axe-core/axe.min.js');
 const baseURL = process.env.SATARK_WEB_URL || 'http://127.0.0.1:3000';
 const artifactDir = process.env.SATARK_WEB_ARTIFACTS || 'artifacts/web';
 await fs.mkdir(artifactDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
 const failures = [];
+
+// The readiness endpoint must remain public-safe and report booleans only.
+{
+  const response = await fetch(baseURL + '/api/health', { headers: { Accept: 'application/json' } });
+  assert.equal(response.status, 200, 'readiness endpoint should be available');
+  assert.match(response.headers.get('cache-control') || '', /no-store/);
+  const health = await response.json();
+  assert.equal(health.status, 'configuration-only');
+  assert.match(health.note || '', /does not probe model, database, or Redis connectivity/i);
+  for (const key of ['analysis', 'localModel', 'rateLimit', 'persistentStorage']) {
+    assert.ok(health.checks?.[key], 'missing readiness diagnostic: ' + key);
+  }
+  assert.equal(health.checks.analysis.mode, 'deterministic-local');
+  assert.equal(health.checks.analysis.configured, true, 'local rules must work without API credentials');
+  for (const key of ['localModel', 'rateLimit', 'persistentStorage']) {
+    assert.equal(typeof health.checks[key].configured, 'boolean');
+  }
+  assert.equal(health.checks.rateLimit.sharedAcrossInstances, false);
+  assert.equal(JSON.stringify(health).includes('API_KEY'), false);
+}
+
+const browser = await chromium.launch({ headless: true });
 const routes = [
   { path: '/', heading: /SATARK|SENTINEL/i },
   { path: '/investigate', heading: /investigate|analysis|suspicious/i },
+  { path: '/image-review', heading: /image review|inspect the image|image metadata/i },
+  { path: '/tools', heading: /every tool|capability directory/i },
+  { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
   { path: '/learn', heading: /learn|safety/i },
+  { path: '/login', heading: /investigations that|welcome back/i },
 ];
 
 async function inspectViewport(viewport, label) {
@@ -33,6 +61,31 @@ async function inspectViewport(viewport, label) {
     assert.match(responseHeaders['strict-transport-security'] || '', /max-age=31536000/,
       `${label}: HSTS must be present on ${route.path}`);
     await page.locator('body').waitFor();
+    // Route transitions must be a fixed, temporary overlay, never normal-flow
+    // content that leaves a large brand card above every page.
+    await page.waitForFunction(() => {
+      const veil = document.querySelector('.route-veil');
+      return !!veil && getComputedStyle(veil).visibility === 'hidden';
+    });
+    const veilLayout = await page.locator('.route-veil').evaluate(element => ({
+      position: getComputedStyle(element).position,
+      opacity: getComputedStyle(element).opacity,
+      pointerEvents: getComputedStyle(element).pointerEvents,
+    }));
+    assert.equal(veilLayout.position, 'fixed', `${label}: route veil must not occupy document flow`);
+    assert.equal(veilLayout.opacity, '0', `${label}: route veil must be hidden when idle`);
+    assert.equal(veilLayout.pointerEvents, 'none', `${label}: hidden route veil must not block controls`);
+
+    // Run axe against every primary route at every supported smoke viewport.
+    await page.addScriptTag({ path: axePath });
+    const axeResults = await page.evaluate(async () => await globalThis.axe.run(document, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] },
+    }));
+    assert.deepEqual(axeResults.violations.map(violation => ({
+      id: violation.id,
+      impact: violation.impact,
+      targets: violation.nodes.map(node => node.target),
+    })), [], `${label}: axe accessibility violations on ${route.path}`);
 
     // Catch structural accessibility regressions on every route and viewport.
     const semantics = await page.evaluate(() => ({
@@ -74,6 +127,18 @@ async function inspectViewport(viewport, label) {
       `${label}: skip link should be the first keyboard focus target on ${route.path}`);
     const bodyText = await page.locator('body').innerText();
     assert.match(bodyText, route.heading, `${label}: expected route content missing at ${route.path}`);
+    if (route.path === '/') {
+      const disclosure = page.locator('.tools-disclosure');
+      // Force the disclosure into its expanded state instead of toggling it.
+      // A click is state-dependent and can accidentally close it if browser
+      // state or a prior interaction already left it open.
+      await disclosure.evaluate(element => { element.open = true; });
+      const qrLink = page.getByRole('link', { name: /open qr decoder/i });
+      assert.equal(await qrLink.getAttribute('href'), '/qr', 'home QR capability must open the implemented local decoder');
+      const qrCard = disclosure.locator('.tool-card').filter({ hasText: 'QR-code investigation' });
+      assert.match((await qrCard.textContent()) || '', /cross-browser decoding and destination inspection are not yet available/i,
+        'home QR copy must disclose remaining capability limits');
+    }
     if (route.path !== '/') {
       assert.equal(await page.locator('.nav-links a[aria-current="page"]').count(), 1,
         `${label}: exactly one current navigation link expected at ${route.path}`);
@@ -101,9 +166,9 @@ async function inspectViewport(viewport, label) {
     if (route.path === '/') {
       const start = page.getByRole('link', { name: /start an investigation/i });
       await start.click();
-      await page.waitForURL(/#investigate$/);
-      assert.equal(await page.getByRole('button', { name: /analyze with satark/i }).isDisabled(), true,
-        'homepage analysis should stay disabled until content is entered');
+      await page.waitForURL(/\/investigate$/);
+      assert.equal(await page.getByRole('button', { name: /analyze content/i }).isDisabled(), true,
+        'focused investigation route should keep analysis disabled until content is entered');
     }
     if (route.path === '/investigate') {
       const analyzeButton = page.getByRole('button', { name: /analyze content/i });
@@ -115,18 +180,54 @@ async function inspectViewport(viewport, label) {
       await input.fill('');
       assert.equal(await analyzeButton.isDisabled(), true, 'investigation should disable again when cleared');
     }
+    if (route.path === '/login') {
+      assert.equal(await page.getByLabel('Email address').isVisible(), true, 'workspace sign-in email must be labelled and visible');
+      assert.equal(await page.getByLabel('Password').isVisible(), true, 'workspace sign-in password must be labelled and visible');
+      assert.equal(await page.getByRole('button', { name: 'Sign in securely' }).isVisible(), true, 'workspace sign-in action must be accessible');
+    }
     if (route.path === '/reports') {
       const notes = page.getByLabel('Review notes');
       const exportButton = page.getByRole('button', { name: /export notes.*txt/i });
-      assert.equal(await exportButton.isDisabled(), true, 'export should be disabled for empty notes');
+      const jsonExportButton = page.getByRole('button', { name: /export notes.*json/i });
+      assert.equal(await exportButton.isDisabled(), true, 'export should be disabled when notes and analysis are empty');
+      await page.evaluate(() => sessionStorage.setItem('satark:last-analysis:v1', JSON.stringify({
+        schema_version: 1,
+        created_at: '2026-10-13T00:00:00.000Z',
+        analysis: {
+          threat_category: 'Suspicious', risk_score: 72, summary: 'Synthetic browser test summary',
+          key_indicators: ['Urgent credential request'], recommendations: ['Verify through official channel'],
+          deterministic_signals: ['Urgency language'], limitations: ['Synthetic test result'],
+          model: 'test-model', notice: 'Triage only',
+        },
+      })));
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.getByText('Synthetic browser test summary').waitFor();
+      assert.equal(await exportButton.isDisabled(), false, 'analysis-only report should be exportable without notes');
+      const analysisOnlyTxtPromise = page.waitForEvent('download');
+      await exportButton.click();
+      const analysisOnlyTxt = await analysisOnlyTxtPromise;
+      assert.equal(analysisOnlyTxt.suggestedFilename(), 'satark-review-notes.txt');
+      const analysisOnlyTxtPath = await analysisOnlyTxt.path();
+      assert.ok(analysisOnlyTxtPath);
+      assert.match(await fs.readFile(analysisOnlyTxtPath, 'utf8'), /Synthetic browser test summary/);
+      const analysisOnlyPromise = page.waitForEvent('download');
+      await jsonExportButton.click();
+      const analysisOnlyDownload = await analysisOnlyPromise;
+      assert.equal(analysisOnlyDownload.suggestedFilename(), 'satark-review-notes.json');
+      const analysisOnlyPath = await analysisOnlyDownload.path();
+      assert.ok(analysisOnlyPath);
+      const analysisOnlyPayload = JSON.parse(await fs.readFile(analysisOnlyPath, 'utf8'));
+      assert.equal(analysisOnlyPayload.analysis_snapshot.analysis.summary, 'Synthetic browser test summary');
+      assert.equal(analysisOnlyPayload.notes, '');
+      assert.equal(analysisOnlyPayload.provenance.analysis_included, true);
       await notes.fill('Synthetic review note: verify sender through official channel.');
+      assert.equal(await exportButton.isDisabled(), false, 'export should enable after notes are entered');
       assert.equal(await exportButton.isDisabled(), false, 'export should enable after notes are entered');
       const downloadPromise = page.waitForEvent('download');
       await exportButton.click();
       const download = await downloadPromise;
       assert.equal(download.suggestedFilename(), 'satark-review-notes.txt');
-      const jsonExportButton = page.getByRole('button', { name: /export notes.*json/i });
-      assert.equal(await jsonExportButton.isDisabled(), false, 'JSON export should enable after notes are entered');
+      assert.equal(await jsonExportButton.isDisabled(), false, 'JSON export should remain enabled after notes are entered');
       const jsonDownloadPromise = page.waitForEvent('download');
       await jsonExportButton.click();
       const jsonDownload = await jsonDownloadPromise;
@@ -135,14 +236,17 @@ async function inspectViewport(viewport, label) {
       assert.ok(jsonPath, 'JSON export should produce a readable download');
       const jsonPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
       assert.equal(jsonPayload.schema_version, 1);
-      assert.equal(jsonPayload.report_type, 'user-authored-review-notes');
+      assert.equal(jsonPayload.report_type, 'review-notes-with-optional-session-analysis');
+      assert.equal(jsonPayload.analysis_snapshot.analysis.summary, 'Synthetic browser test summary');
+      assert.equal(jsonPayload.provenance.analysis_included, true);
+      assert.equal(jsonPayload.provenance.submitted_source_text_saved, false);
       assert.equal(jsonPayload.notes, await notes.inputValue().then(value => value.trim()));
       assert.ok(Array.isArray(jsonPayload.limitations) && jsonPayload.limitations.length > 0,
         'JSON export should explain its evidence and certification limitations');
       await page.getByRole('status').filter({ hasText: /download manager/i }).waitFor();
       await page.getByRole('button', { name: /clear notes/i }).click();
       assert.equal(await notes.inputValue(), '');
-      assert.equal(await exportButton.isDisabled(), true);
+      assert.equal(await exportButton.isDisabled(), false, 'analysis-only export should remain available after clearing notes');
     }
     if (route.path === '/learn') {
       for (const name of ['q0', 'q1', 'q2']) await page.locator(`input[name="${name}"]`).nth(name === 'q0' ? 1 : name === 'q1' ? 2 : 1).check();
@@ -165,9 +269,17 @@ async function inspectViewport(viewport, label) {
       await launch.waitFor();
       await launch.click();
       await page.getByRole('heading', { name: /artifacts & integrity/i }).waitFor();
+      await page.locator('.incident-content .panel').evaluate(async element => {
+        await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+      });
       assert.equal(await page.locator('.evidence-table tbody tr').count(), 5, 'training case should load five evidence records');
 
       const tamper = page.getByRole('button', { name: /simulate tamper/i }).first();
+      await tamper.evaluate(element => {
+        const tableViewport = element.closest('.table-wrap');
+        if (tableViewport) tableViewport.scrollLeft = tableViewport.scrollWidth;
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+      });
       await tamper.click();
       await page.getByText('MISMATCH').first().waitFor();
       await page.getByRole('button', { name: /restore demo/i }).first().click();
@@ -267,6 +379,34 @@ try {
   await inspectViewport({ width: 390, height: 844 }, 'mobile');
   await inspectViewport({ width: 320, height: 720 }, 'small-mobile');
 
+  // Image inspection must stay in-browser and produce a reproducible SHA-256.
+  {
+    const imagePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const externalRequests = [];
+    const origin = new URL(baseURL).origin;
+    imagePage.on('request', request => {
+      const url = new URL(request.url());
+      if (url.protocol.startsWith('http') && url.origin !== origin) externalRequests.push(url.origin);
+    });
+    await imagePage.goto(baseURL + '/image-review', { waitUntil: 'networkidle' });
+    const imageBytes = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    const expectedHash = createHash('sha256').update(imageBytes).digest('hex');
+    await imagePage.locator('#image-file').setInputFiles({
+      name: 'one-pixel.gif',
+      mimeType: 'image/gif',
+      buffer: imageBytes,
+    });
+    await imagePage.getByText('Image inspection complete', { exact: true }).waitFor({ timeout: 10_000 }).catch(async () => {
+      const failure = await imagePage.getByRole('alert').innerText().catch(() => 'No image-review error message was rendered.');
+      throw new Error('Image review failed: ' + failure);
+    });
+    const imageText = await imagePage.locator('body').innerText();
+    assert.match(imageText, /1 × 1 pixels/);
+    assert.ok(imageText.includes(expectedHash), 'image review must expose the byte-exact SHA-256 fingerprint');
+    assert.deepEqual(externalRequests, [], 'image review must not send the file or metadata to external services');
+    await imagePage.close();
+  }
+
   const reducedMotionPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await reducedMotionPage.emulateMedia({ reducedMotion: 'reduce' });
   await reducedMotionPage.goto(baseURL + '/firstlight', { waitUntil: 'networkidle' });
@@ -329,30 +469,29 @@ try {
   const limited = await Promise.all(Array.from({ length: 9 }, () => fetch(baseURL + '/api/analyze', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-real-ip': '198.51.100.91' },
-    body: '{not-json',
+    body: JSON.stringify({ input: 'Synthetic training example: please verify your account.' }),
   })));
-  assert.equal(limited.filter(response => response.status === 400).length, 8,
-    'the first eight requests should reach JSON validation');
+  assert.equal(limited.filter(response => response.status === 200).length, 8,
+    'the first eight valid requests should be analyzed locally');
   assert.equal(limited.filter(response => response.status === 429).length, 1,
     'the ninth request from one client should be rate-limited');
   assert.ok(limited.every(response => response.headers.get('cache-control') === 'no-store'),
     'rate-limit and validation errors must not be cached');
 
-  if (process.env.GROQ_API_KEY) {
-    const response = await fetch(baseURL + '/api/analyze', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ input: 'Training-only example: "Your account will be closed today; verify your password at example.invalid". Assess cautiously; do not visit the domain.' }),
-    });
-    assert.equal(response.status, 200, `configured provider request returned ${response.status}: ${(await response.text()).slice(0, 500)}`);
-    const result = await response.json();
-    assert.ok(result && typeof result === 'object', 'provider response should be JSON');
-    assert.ok(typeof result.risk_score === 'number', 'provider response should include a numeric risk_score');
-    assert.ok(typeof result.summary === 'string', 'provider response should include a summary');
-    console.log('Provider smoke test: passed with synthetic non-sensitive input.');
-  } else {
-    console.warn('Provider smoke test skipped: GROQ_API_KEY is not configured in this CI run.');
-  }
+  const localAnalysisResponse = await fetch(baseURL + '/api/analyze', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-real-ip': '198.51.100.92' },
+    body: JSON.stringify({ input: 'Training-only example: "Your account will be closed today; verify your password at http://example.invalid/login". Do not visit the URL.' }),
+  });
+  assert.equal(localAnalysisResponse.status, 200,
+    `local analysis should work without API credentials: ${(await localAnalysisResponse.clone().text()).slice(0, 500)}`);
+  const localResult = await localAnalysisResponse.json();
+  assert.equal(localResult.model, 'deterministic-local-rules',
+    'CI without a self-hosted model should use deterministic local rules');
+  assert.ok(typeof localResult.risk_score === 'number', 'local result should include a heuristic priority');
+  assert.ok(Array.isArray(localResult.deterministic_signals), 'local result should include explainable signals');
+  assert.match(localResult.notice, /No submitted content was sent to a third-party AI or threat-intelligence API/);
+  console.log('Local analysis smoke test: passed without API keys.');
 
   assert.deepEqual(failures, [], failures.join('\n'));
   console.log('SATARK web browser smoke tests passed at desktop and mobile viewports.');
