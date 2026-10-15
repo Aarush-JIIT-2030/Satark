@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './sentinel-polish.css';
 import RouteExperience from './route-experience';
 
 export const metadata: Metadata = {
