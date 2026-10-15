@@ -210,3 +210,64 @@ jobs:
 
       - name: Run real Supabase tenant and role isolation tests
         run: npm run test:integration
+
+  web-browser-acceptance:
+    name: Next.js production browser and accessibility smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Start production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/satark-web.log 2>&1 &
+          echo $! > /tmp/satark-web.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/satark-web.log
+          exit 1
+
+      - name: Audit production routes, security headers and accessibility
+        env:
+          SATARK_WEB_URL: http://127.0.0.1:3000
+          SATARK_WEB_ARTIFACTS: artifacts/web
+        run: npm run test:browser
+
+      - name: Upload browser artifacts and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: satark-next-production-browser
+          path: |
+            web/artifacts/web/
+            /tmp/satark-web.log
+          if-no-files-found: warn
+
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -f /tmp/satark-web.pid ]; then kill "$(cat /tmp/satark-web.pid)" || true; fi
