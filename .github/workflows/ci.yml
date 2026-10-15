@@ -133,3 +133,30 @@ jobs:
           if bad:
               raise SystemExit('\\n'.join(bad))
           PY
+
+  web-validation:
+    name: Next.js web validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Verify lockfile exists
+        run: test -s package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Typecheck, test and build Next.js app
+        run: npm run test:ci
