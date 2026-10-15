@@ -46,6 +46,30 @@ test('marks private network targets without contacting them', () => {
   assert.ok(result.findings.some(item => item.title === 'Local or private-network address'));
 });
 
+test('flags IPv6 local, unique-local, link-local and mapped private destinations', () => {
+  for (const host of [
+    '[::1]',
+    '[fc00::1234]',
+    '[fd12:3456:789a::1]',
+    '[fe80::1]',
+    '[ff02::1]',
+    '[::ffff:192.168.1.10]',
+    '[::ffff:10.0.0.8]',
+  ]) {
+    const result = inspectUrl('http://' + host + '/admin');
+    assert.equal(result.ok, true, host);
+    if (!result.ok) continue;
+    assert.ok(result.findings.some(item => item.title === 'Local or private-network address'), host);
+  }
+});
+
+test('does not flag a public IPv6 address as a local/private destination', () => {
+  const result = inspectUrl('https://[2606:4700:4700::1111]/');
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.findings.some(item => item.title === 'Local or private-network address'), false);
+});
+
 test('does not label an ordinary HTTPS URL as safe or malicious', () => {
   const result = inspectUrl('https://example.com/account');
   assert.equal(result.ok, true);

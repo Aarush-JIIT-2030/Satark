@@ -11,6 +11,45 @@ function isPrivateIpv4(host) {
     (octets[0] === 192 && octets[1] === 168);
 }
 
+function ipv6Groups(host) {
+  let value = host.toLowerCase();
+  if (value.includes('.')) {
+    const lastColon = value.lastIndexOf(':');
+    if (lastColon < 0) return null;
+    const octets = value.slice(lastColon + 1).split('.').map(Number);
+    if (octets.length !== 4 || octets.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    value = value.slice(0, lastColon + 1) +
+      ((octets[0] << 8) | octets[1]).toString(16) + ':' +
+      ((octets[2] << 8) | octets[3]).toString(16);
+  }
+
+  if ((value.match(/::/g) || []).length > 1) return null;
+  const halves = value.split('::');
+  const left = halves[0] ? halves[0].split(':') : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+  const parts = [...left, ...Array(missing).fill('0'), ...right];
+  if (parts.length !== 8 || parts.some(part => !/^[0-9a-f]{1,4}$/.test(part))) return null;
+  return parts.map(part => Number.parseInt(part, 16));
+}
+
+function isPrivateIpv6(host) {
+  const groups = ipv6Groups(host);
+  if (!groups) return false;
+  if (groups.every(group => group === 0)) return true; // unspecified
+  if (groups.slice(0, 7).every(group => group === 0) && groups[7] === 1) return true; // loopback
+  const first = groups[0];
+  if ((first & 0xfe00) === 0xfc00) return true; // unique-local fc00::/7
+  if ((first & 0xffc0) === 0xfe80) return true; // link-local fe80::/10
+  if ((first & 0xff00) === 0xff00) return true; // multicast
+  if (groups.slice(0, 5).every(group => group === 0) && groups[5] === 0xffff) {
+    const octets = [groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255];
+    return isPrivateIpv4(octets.join('.'));
+  }
+  return false;
+}
+
 /** Inspect a URL as untrusted text; this helper never performs network requests. */
 export function inspectUrl(input) {
   if (typeof input !== 'string' || !input.trim()) return { ok: false, error: 'Enter a URL to inspect.' };
@@ -47,7 +86,7 @@ export function inspectUrl(input) {
   }
   const isIp = IPV4.test(hostname) || hostname.includes(':');
   if (isIp) add('low', 'IP-address destination', 'The hostname is an IP address rather than a conventional domain. This is not malicious by itself.');
-  if (isPrivateIpv4(hostname) || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '::1' || hostname === '0:0:0:0:0:0:0:1') {
+  if (isPrivateIpv4(hostname) || isPrivateIpv6(hostname) || hostname === 'localhost' || hostname.endsWith('.localhost')) {
     add('info', 'Local or private-network address', 'This appears to target a local/private address. SATARK does not connect to it.');
   }
   const labels = hostname.split('.').filter(Boolean);
