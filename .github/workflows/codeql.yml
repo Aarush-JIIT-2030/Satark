@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze Python
+    name: Analyze Python and JavaScript/TypeScript
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -25,8 +25,8 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: python
+          languages: javascript-typescript, python
       - name: Analyze
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:python"
+          # Analyze both the legacy Python app and the Next.js TypeScript web app.
