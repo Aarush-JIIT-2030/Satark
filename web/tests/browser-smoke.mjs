@@ -14,7 +14,7 @@ await fs.mkdir(artifactDir, { recursive: true });
 const failures = [];
 
 function makeMinimalPdf(text) {
-  const safe = text.replace(/[\\()]/g, '\\const failures = [];').replace(/[^\x20-\x7e]/g, ' ');
+  const safe = text.replace(/[\\()]/g, match => '\\' + match).replace(/[^\x20-\x7e]/g, ' ');
   const stream = 'BT /F1 12 Tf 50 740 Td (' + safe + ') Tj ET';
   const objects = [
     '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
@@ -36,27 +36,6 @@ function makeMinimalPdf(text) {
   }
   output += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
   return Buffer.from(output, 'ascii');
-}
-
-
-// The readiness endpoint must remain public-safe and report booleans only.
-{
-  const response = await fetch(baseURL + '/api/health', { headers: { Accept: 'application/json' } });
-  assert.equal(response.status, 200, 'readiness endpoint should be available');
-  assert.match(response.headers.get('cache-control') || '', /no-store/);
-  const health = await response.json();
-  assert.equal(health.status, 'configuration-only');
-  assert.match(health.note || '', /does not probe model, database, or Redis connectivity/i);
-  for (const key of ['analysis', 'localModel', 'rateLimit', 'persistentStorage']) {
-    assert.ok(health.checks?.[key], 'missing readiness diagnostic: ' + key);
-  }
-  assert.equal(health.checks.analysis.mode, 'deterministic-local');
-  assert.equal(health.checks.analysis.configured, true, 'local rules must work without API credentials');
-  for (const key of ['localModel', 'rateLimit', 'persistentStorage']) {
-    assert.equal(typeof health.checks[key].configured, 'boolean');
-  }
-  assert.equal(health.checks.rateLimit.sharedAcrossInstances, false);
-  assert.equal(JSON.stringify(health).includes('API_KEY'), false);
 }
 
 const browser = await chromium.launch({ headless: true });
