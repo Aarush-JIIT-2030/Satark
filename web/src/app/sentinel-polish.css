@@ -130,3 +130,15 @@ hr { border-color: var(--sentinel-line); }
 }
 @media(max-width:360px){.nav-links.nav-links-open{grid-template-columns:1fr}.topbar .status{letter-spacing:.06em}}
 @media(prefers-reduced-motion:reduce){.nav-links.nav-links-open{animation:none}}
+
+
+/* Investigation result visualization: measured score, not a confidence claim */
+.risk-meter-panel{margin:20px 0 24px;padding:16px 17px;border:1px solid var(--sentinel-line);border-radius:12px;background:linear-gradient(115deg,#9df2d108,#ffffff02)}
+.risk-meter-labels,.risk-meter-scale{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.risk-meter-labels{color:#dbe8e5;font-size:11px;font-weight:700}
+.risk-meter-labels span:last-child{font-variant-numeric:tabular-nums;color:var(--sentinel-mint)}
+.risk-meter-track{height:8px;margin:12px 0 8px;overflow:hidden;border-radius:999px;background:#dce8e812;border:1px solid #dce8e80b}
+.risk-meter-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8edbbf,#c9f36b);box-shadow:0 0 16px #9df2d122;transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.risk-meter-scale{color:#738891;font-size:9px}
+.risk-meter-panel .field-note{margin:11px 0 0;font-size:10px}
+@media(prefers-reduced-motion:reduce){.risk-meter-fill{transition:none}}
