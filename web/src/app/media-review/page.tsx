@@ -1,7 +1,7 @@
 'use client';
 
 import SiteHeader from '../site-header';
-import { useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { Activity, AlertTriangle, Download, Fingerprint, LockKeyhole, RotateCcw, ScanSearch, ShieldCheck, Video } from 'lucide-react';
 
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -218,7 +218,7 @@ export default function MediaReviewPage() {
     setFile(next);
   }
 
-  function handleMetadata(event: React.SyntheticEvent<HTMLVideoElement>) {
+  function handleMetadata(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget;
     const selected = file;
     if (!selected) return;
