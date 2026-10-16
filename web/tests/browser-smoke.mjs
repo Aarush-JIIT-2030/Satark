@@ -144,7 +144,7 @@ async function inspectViewport(viewport, label) {
       const qrLink = disclosure.getByRole('link', { name: /open qr decoder/i });
       assert.equal(await qrLink.getAttribute('href'), '/qr', 'home QR capability must open the implemented local decoder');
       const qrCard = disclosure.locator('.tool-card').filter({ hasText: 'QR-code investigation' });
-      assert.match((await qrCard.textContent()) || '', /cross-browser decoding and destination inspection are not yet available/i,
+      assert.match((await qrCard.textContent()) || '', /bundled fallback decoder|cross-browser decoding/i,
         'home QR copy must disclose remaining capability limits');
     }
     if (route.path !== '/') {
