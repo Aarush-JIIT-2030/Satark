@@ -14,6 +14,7 @@ const workflows = [
   { n: '02', icon: Fingerprint, title: 'Inspect image signals', text: 'Review supported metadata markers and calculate a SHA-256 fingerprint locally.', href: '/image-review', action: 'Review an image', tone: 'violet', tag: 'LOCAL ANALYSIS' },
   { n: '03', icon: ScanLine, title: 'Decode a QR payload', text: 'Decode supported QR content locally. Destination inspection is not yet available across browsers.', href: '/qr', action: 'Open QR decoder', tone: 'blue', tag: 'LIMITED SUPPORT' },
   { n: '04', icon: FileSearch, title: 'Review reports', text: 'Open reports and inspect available findings. Persistent case history needs a configured workspace.', href: '/reports', action: 'View reports', tone: 'amber', tag: 'WORKSPACE' },
+  { n: '05', icon: Activity, title: 'Manage investigation cases', text: 'Create, prioritize, and update tenant-scoped cases in your saved workspace.', href: '/cases', action: 'Open case workspace', tone: 'blue', tag: 'PERSISTENT WORKSPACE' },
 ];
 
 const tools: Array<[string, string, string, string, string]> = [
