@@ -42,7 +42,7 @@ const routes = [
   { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
-  { path: '/learn', heading: /learn|safety/i },
+  { path: '/learn', heading: /learn|safety|social-engineering|pause\. verify\. then act/i },
   { path: '/login', heading: /investigations that|welcome back/i },
 ];
 
