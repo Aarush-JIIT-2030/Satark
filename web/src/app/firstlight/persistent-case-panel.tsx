@@ -32,6 +32,7 @@ export default function PersistentCasePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [requestedCaseId, setRequestedCaseId] = useState('');
 
   async function refresh() {
     const current = await getSession();
@@ -48,7 +49,28 @@ export default function PersistentCasePanel({
     if (selected) setCases(await listCases(selected.id));
     else setCases([]);
   }
-  useEffect(() => { void refresh().catch(e => setError(e instanceof Error ? e.message : 'Could not load workspace.')); }, []);
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('case_id') || '';
+    if (requested) setRequestedCaseId(requested);
+    void refresh().catch(e => setError(e instanceof Error ? e.message : 'Could not load workspace.'));
+  }, []);
+
+  useEffect(() => {
+    if (!requestedCaseId || !tenant || !session || !cases.length || busy) return;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedCaseId)) {
+      setError('The requested case link is invalid. Choose a saved case from this workspace.');
+      setRequestedCaseId('');
+      return;
+    }
+    const requested = cases.find(item => item.id === requestedCaseId);
+    setRequestedCaseId('');
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+    if (!requested) {
+      setError('That case is not available in the currently selected workspace.');
+      return;
+    }
+    void loadSavedCase(requested);
+  }, [requestedCaseId, tenant, session, cases, busy]);
 
   async function persistIncident() {
     if (!tenant || !session) { setError('Sign in and select a workspace before saving an incident.'); return; }
