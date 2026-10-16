@@ -12,6 +12,7 @@ const links = [
   { href: '/qr', label: 'QR review' },
   { href: '/image-review', label: 'Image review' },
   { href: '/firstlight', label: 'FIRSTLIGHT' },
+  { href: '/cases', label: 'Cases' },
   { href: '/reports', label: 'Reports' },
   { href: '/learn', label: 'Learn' },
   { href: '/login', label: 'Workspace' },
