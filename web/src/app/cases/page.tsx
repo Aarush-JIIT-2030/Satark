@@ -282,6 +282,7 @@ export default function CasesPage() {
                           {SEVERITIES.map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
                         </select></div>
                     </div>
+                    <div className="actions case-open-actions"><Link className="btn btn-secondary" href={'/firstlight?case_id=' + encodeURIComponent(item.id)}>Open in FIRSTLIGHT <ArrowUpRight size={15} /></Link></div>
                     {busyCase === item.id && <p className="hint" role="status">Saving case update…</p>}
                   </article>)}
                 </div> :
