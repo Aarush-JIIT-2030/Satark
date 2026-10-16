@@ -88,7 +88,24 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="tools-section home-tools" aria-labelledby="capability-title">\n          <div className="sentinel-section-heading">\n            <div><div className="sentinel-overline">CAPABILITY MAP</div><h2 id="capability-title">Know what is live—and what is not.</h2></div>\n            <p>Available workflows and incomplete migrations are labelled plainly. A missing signal never proves content is safe.</p>\n          </div>\n          <details className="tools-disclosure">\n            <summary><span><strong>Browse all eight capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>\n            <div className="tool-grid">\n              {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>\n                <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>\n                <h3>{title}</h3><p>{description}</p><a className="text-link" href={href}>{action} →</a>\n              </article>)}\n            </div>\n            <div className="tool-boundary"><span aria-hidden="true">i</span><p><strong>Important boundary:</strong> SATARK does not visit submitted URLs or execute uploaded files. Image metadata cannot prove authenticity. Persistent cases and evidence require a configured database and verified tenant access.</p></div>\n          </details>\n        </section>\n\n        <section className="sentinel-method" aria-labelledby="method-title">
+        <section className="tools-section home-tools" aria-labelledby="capability-title">
+          <div className="sentinel-section-heading">
+            <div><div className="sentinel-overline">CAPABILITY MAP</div><h2 id="capability-title">Know what is live—and what is not.</h2></div>
+            <p>Available workflows and incomplete migrations are labelled plainly. A missing signal never proves content is safe.</p>
+          </div>
+          <details className="tools-disclosure">
+            <summary><span><strong>Browse all eight capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
+            <div className="tool-grid">
+              {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
+                <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
+                <h3>{title}</h3><p>{description}</p><a className="text-link" href={href}>{action} →</a>
+              </article>)}
+            </div>
+            <div className="tool-boundary"><span aria-hidden="true">i</span><p><strong>Important boundary:</strong> SATARK does not visit submitted URLs or execute uploaded files. Image metadata cannot prove authenticity. Persistent cases and evidence require a configured database and verified tenant access.</p></div>
+          </details>
+        </section>
+
+        <section className="sentinel-method" aria-labelledby="method-title">
           <div className="method-intro"><div className="sentinel-overline">THE SATARK STANDARD</div><h2 id="method-title">Confidence comes<br />from <span>verification.</span></h2><p>Security tools should help you think clearly—not make decisions for you.</p><a href="/tools" className="method-link">Explore all capabilities <ArrowUpRight size={15} /></a></div>
           <div className="method-principles">
             {principles.map(({ icon: Icon, title, text }, i) => <article key={title} className="principle-row"><span className="principle-icon"><Icon size={18} /></span><span className="principle-number">0{i + 1}</span><div><h3>{title}</h3><p>{text}</p></div><ChevronRight className="principle-chevron" size={17} /></article>)}
