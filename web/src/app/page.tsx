@@ -6,7 +6,7 @@ import { Radar } from '../components/react-bits';
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, Fingerprint,
   FileSearch, BookOpen, Activity, LockKeyhole, ScanLine, CircleDot, ChevronRight,
-  Sparkles, Eye, Network, ShieldAlert
+  Eye, ShieldAlert
 } from 'lucide-react';
 
 const workflows = [
@@ -14,6 +14,17 @@ const workflows = [
   { n: '02', icon: Fingerprint, title: 'Inspect image signals', text: 'Review supported metadata markers and calculate a SHA-256 fingerprint locally.', href: '/image-review', action: 'Review an image', tone: 'violet', tag: 'LOCAL ANALYSIS' },
   { n: '03', icon: ScanLine, title: 'Decode a QR payload', text: 'Decode supported QR content locally. Destination inspection is not yet available across browsers.', href: '/qr', action: 'Open QR decoder', tone: 'blue', tag: 'LIMITED SUPPORT' },
   { n: '04', icon: FileSearch, title: 'Review reports', text: 'Open reports and inspect available findings. Persistent case history needs a configured workspace.', href: '/reports', action: 'View reports', tone: 'amber', tag: 'WORKSPACE' },
+];
+
+const tools: Array<[string, string, string, string, string]> = [
+  ['01', 'Text & message triage', 'Spot pressure tactics, impersonation cues and risky requests.', '/investigate', 'OPEN ANALYSIS'],
+  ['02', 'URL review', 'Review a URL as text without automatically visiting it.', '/investigate', 'OPEN ANALYSIS'],
+  ['03', 'Image metadata & integrity', 'Inspect supported metadata markers and calculate a SHA-256 fingerprint locally. Not an authenticity verdict.', '/image-review', 'OPEN IMAGE REVIEW'],
+  ['04', 'QR-code investigation', 'Decode QR payloads locally. Cross-browser decoding and destination inspection are not yet available.', '/qr', 'OPEN QR DECODER'],
+  ['05', 'PDF & document review', 'A sandboxed local document pipeline is not yet available here. See the migration status.', '/tools#pdf', 'VIEW STATUS'],
+  ['06', 'Video & media signals', 'Video processing and provenance checks are not yet migrated. See the migration status.', '/tools#video', 'VIEW STATUS'],
+  ['07', 'Persistent history & exports', 'Review reports; durable case history requires a configured workspace database.', '/reports', 'OPEN REPORTS'],
+  ['08', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
 ];
 
 const principles = [
