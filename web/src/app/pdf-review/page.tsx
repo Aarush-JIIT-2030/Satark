@@ -120,7 +120,7 @@ export default function PdfReviewPage() {
     }
 
     setBusy(true);
-    let loadingTask: { promise: Promise<unknown>; destroy: () => Promise<void> } | null = null;
+    let disposePdf: (() => Promise<void>) | null = null;
     try {
       const buffer = await file.arrayBuffer();
       let text = '';
@@ -135,13 +135,14 @@ export default function PdfReviewPage() {
 
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
-        loadingTask = pdfjs.getDocument({
+        const loadingTask = pdfjs.getDocument({
           data: bytes,
           isEvalSupported: false,
           enableXfa: false,
           useWorkerFetch: false,
           useWasm: false,
         });
+        disposePdf = () => loadingTask.destroy();
         const pdf = await loadingTask.promise;
         pages = pdf.numPages;
         if (pages > MAX_PAGES) throw new Error('This PDF contains more than 50 pages. Split it into smaller files and inspect only the relevant pages.');
@@ -208,8 +209,8 @@ export default function PdfReviewPage() {
         setError(message);
       }
     } finally {
-      if (loadingTask) {
-        await loadingTask.destroy().catch(() => undefined);
+      if (disposePdf) {
+        await disposePdf().catch(() => undefined);
       }
       setBusy(false);
     }
