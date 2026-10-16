@@ -42,6 +42,7 @@ const routes = [
   { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
+  { path: '/cases', heading: /manage saved cases|case management/i },
   { path: '/learn', heading: /learn|safety|social-engineering|pause\. verify\. then act/i },
   { path: '/login', heading: /investigations that|welcome back/i },
 ];
