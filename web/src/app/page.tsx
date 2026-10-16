@@ -5,26 +5,31 @@ import ServiceReadiness from '../components/service-readiness';
 import { Radar } from '../components/react-bits';
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, Fingerprint,
-  FileSearch, BookOpen, Activity, LockKeyhole, ScanLine, CircleDot, ChevronRight,
+  FileSearch, FileText, Film, BookOpen, Activity, LockKeyhole, ScanLine, CircleDot, ChevronRight,
   Eye, ShieldAlert
 } from 'lucide-react';
 
 const workflows = [
   { n: '01', icon: ScanSearch, title: 'Investigate a message or URL', text: 'Run deterministic checks on suspicious text without opening the submitted destination.', href: '/investigate', action: 'Start investigation', tone: 'mint', tag: 'CORE WORKFLOW' },
   { n: '02', icon: Fingerprint, title: 'Inspect image signals', text: 'Review supported metadata markers and calculate a SHA-256 fingerprint locally.', href: '/image-review', action: 'Review an image', tone: 'violet', tag: 'LOCAL ANALYSIS' },
-  { n: '03', icon: ScanLine, title: 'Decode a QR payload', text: 'Decode supported QR content locally. Destination inspection is not yet available across browsers.', href: '/qr', action: 'Open QR decoder', tone: 'blue', tag: 'LIMITED SUPPORT' },
-  { n: '04', icon: FileSearch, title: 'Review reports', text: 'Open reports and inspect available findings. Persistent case history needs a configured workspace.', href: '/reports', action: 'View reports', tone: 'amber', tag: 'WORKSPACE' },
+  { n: '03', icon: ScanLine, title: 'Decode a QR payload', text: 'Decode QR content locally across supported browsers. The destination is never fetched or opened automatically.', href: '/qr', action: 'Open QR decoder', tone: 'blue', tag: 'LOCAL DECODING' },
+  { n: '04', icon: FileText, title: 'Review a PDF or text document', text: 'Extract supported text locally, fingerprint the source file and review transparent social-engineering cues.', href: '/pdf-review', action: 'Review a document', tone: 'amber', tag: 'LOCAL DOCUMENT REVIEW' },
+  { n: '05', icon: Film, title: 'Inspect video frame samples', text: 'Review browser-decoded metadata and up to six representative frame samples. No audio or deepfake verdict.', href: '/media-review', action: 'Review media', tone: 'violet', tag: 'BOUNDED MEDIA REVIEW' },
+  { n: '06', icon: Activity, title: 'Manage investigation cases', text: 'Create, prioritize, and update tenant-scoped cases in your saved workspace.', href: '/cases', action: 'Open case workspace', tone: 'blue', tag: 'PERSISTENT WORKSPACE' },
+  { n: '07', icon: FileSearch, title: 'Review reports', text: 'Open reports and inspect available findings. Persistent case history needs a configured workspace.', href: '/reports', action: 'View reports', tone: 'mint', tag: 'WORKSPACE' },
 ];
 
 const tools: Array<[string, string, string, string, string]> = [
   ['01', 'Text & message triage', 'Spot pressure tactics, impersonation cues and risky requests.', '/investigate', 'OPEN ANALYSIS'],
   ['02', 'URL review', 'Review a URL as text without automatically visiting it.', '/investigate', 'OPEN ANALYSIS'],
   ['03', 'Image metadata & integrity', 'Inspect supported metadata markers and calculate a SHA-256 fingerprint locally. Not an authenticity verdict.', '/image-review', 'OPEN IMAGE REVIEW'],
-  ['04', 'QR-code investigation', 'Decode QR payloads locally. Cross-browser decoding and destination inspection are not yet available.', '/qr', 'OPEN QR DECODER'],
-  ['05', 'PDF & document review', 'A sandboxed local document pipeline is not yet available here. See the migration status.', '/tools#pdf', 'VIEW STATUS'],
-  ['06', 'Video & media signals', 'Video processing and provenance checks are not yet migrated. See the migration status.', '/tools#video', 'VIEW STATUS'],
-  ['07', 'Persistent history & exports', 'Review reports; durable case history requires a configured workspace database.', '/reports', 'OPEN REPORTS'],
-  ['08', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
+  ['04', 'QR-code investigation', 'Decode QR payloads locally with the native browser API and bundled fallback decoder. Destinations are never fetched automatically.', '/qr', 'OPEN QR DECODER'],
+  ['05', 'PDF & text document review', 'Extract supported PDF and plain-text content locally, calculate a source fingerprint and inspect explainable text cues.', '/pdf-review', 'OPEN DOCUMENT REVIEW'],
+  ['06', 'Video frame sampling', 'Inspect MP4/WebM metadata and sample up to six frames within bounded size/duration limits. No deepfake verdict.', '/media-review', 'OPEN MEDIA REVIEW'],
+  ['07', 'Threat-intelligence status', 'The local indicator cache needs an approved, provenance-tracked feed. No match does not mean safe.', '/tools#intel', 'VIEW STATUS'],
+  ['08', 'Persistent case workspace', 'Create and track tenant-scoped investigation cases when the workspace backend is configured.', '/cases', 'OPEN CASES'],
+  ['09', 'Reports & saved exports', 'Review local TXT/JSON exports and persistent report snapshots where the workspace database is configured.', '/reports', 'OPEN REPORTS'],
+  ['10', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
 ];
 
 const principles = [
@@ -94,7 +99,7 @@ export default function Home() {
             <p>Available workflows and incomplete migrations are labelled plainly. A missing signal never proves content is safe.</p>
           </div>
           <details className="tools-disclosure">
-            <summary><span><strong>Browse all eight capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
+            <summary><span><strong>Browse all eleven capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
             <div className="tool-grid">
               {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
                 <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
@@ -113,7 +118,7 @@ export default function Home() {
         </section>
 
         <section className="sentinel-boundary" aria-label="Capability status">
-          <div className="boundary-icon"><ShieldAlert size={20} /></div><div><strong>Built for careful triage—not false certainty.</strong><p>PDF and video pipelines are not yet migrated. QR destination inspection is limited, and persistent case history depends on a correctly configured workspace database. A missing signal never proves that content is safe.</p></div><a href="/tools">Capability status <ArrowUpRight size={15} /></a>
+          <div className="boundary-icon"><ShieldAlert size={20} /></div><div><strong>Built for careful triage—not false certainty.</strong><p>Document review now extracts bounded PDF and text content locally; video review samples representative MP4/WebM frames locally. OCR for scanned PDFs, audio analysis and deepfake detection remain unsupported. QR destinations are never visited automatically, and persistent case history still depends on a configured workspace database. A missing signal never proves that content is safe.</p></div><a href="/tools">Capability status <ArrowUpRight size={15} /></a>
         </section>
 
         <section className="sentinel-learning-strip">
