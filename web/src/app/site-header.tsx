@@ -10,6 +10,7 @@ const links = [
   { href: '/tools', label: 'Tools' },
   { href: '/url', label: 'URL inspector' },
   { href: '/qr', label: 'QR review' },
+  { href: '/image-review', label: 'Image review' },
   { href: '/firstlight', label: 'FIRSTLIGHT' },
   { href: '/cases', label: 'Cases' },
   { href: '/pdf-review', label: 'Documents' },
