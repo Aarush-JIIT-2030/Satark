@@ -24,8 +24,10 @@ const tools: Array<[string, string, string, string, string]> = [
   ['04', 'QR-code investigation', 'Decode QR payloads locally. Cross-browser decoding and destination inspection are not yet available.', '/qr', 'OPEN QR DECODER'],
   ['05', 'PDF & document review', 'A sandboxed local document pipeline is not yet available here. See the migration status.', '/tools#pdf', 'VIEW STATUS'],
   ['06', 'Video & media signals', 'Video processing and provenance checks are not yet migrated. See the migration status.', '/tools#video', 'VIEW STATUS'],
-  ['07', 'Persistent history & exports', 'Review reports; durable case history requires a configured workspace database.', '/reports', 'OPEN REPORTS'],
-  ['08', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
+  ['07', 'Threat-intelligence status', 'The local indicator cache needs an approved, provenance-tracked feed. No match does not mean safe.', '/tools#intel', 'VIEW STATUS'],
+  ['08', 'Persistent case workspace', 'Create and track tenant-scoped investigation cases when the workspace backend is configured.', '/cases', 'OPEN CASES'],
+  ['09', 'Reports & saved exports', 'Review local exports and persistent report snapshots where the workspace database is configured.', '/reports', 'OPEN REPORTS'],
+  ['10', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
 ];
 
 const principles = [
@@ -95,7 +97,7 @@ export default function Home() {
             <p>Available workflows and incomplete migrations are labelled plainly. A missing signal never proves content is safe.</p>
           </div>
           <details className="tools-disclosure">
-            <summary><span><strong>Browse all eight capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
+            <summary><span><strong>Browse all ten capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
             <div className="tool-grid">
               {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
                 <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
