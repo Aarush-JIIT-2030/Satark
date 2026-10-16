@@ -141,7 +141,7 @@ export default function PdfReviewPage() {
           enableXfa: false,
           useWorkerFetch: false,
           useWasm: false,
-        } as import('pdfjs-dist').DocumentInitParameters & { isEvalSupported?: boolean };
+        };
         const loadingTask = pdfjs.getDocument(pdfOptions);
         disposePdf = () => loadingTask.destroy();
         const pdf = await loadingTask.promise;
