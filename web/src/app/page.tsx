@@ -97,7 +97,7 @@ export default function Home() {
             <p>Available workflows and incomplete migrations are labelled plainly. A missing signal never proves content is safe.</p>
           </div>
           <details className="tools-disclosure">
-            <summary><span><strong>Browse all ten capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
+            <summary><span><strong>Browse all eleven capabilities</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
             <div className="tool-grid">
               {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
                 <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
