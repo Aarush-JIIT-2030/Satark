@@ -19,5 +19,5 @@ test('viewer create requires an authorization denial and viewer update cannot si
   assert.ok(source.includes('[401, 403]'));
   assert.ok(source.includes('create.status'));
   assert.ok(source.includes('rows.length > 0'));
-  assert.match(source, /assert\\.deepEqual\\(await update\\.json\\(\\), \\[\\],/);
+  assert.match(source, /assert\.deepEqual\(await update\.json\(\), \[\],/);
 });
