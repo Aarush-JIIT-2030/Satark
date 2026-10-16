@@ -148,6 +148,14 @@ export default function InvestigatePage() {
               <span className="pill">{result.threat_category}</span>
               <strong id="analysis-result-title">Heuristic priority: {result.risk_score}/100</strong>
             </div>
+            <div className="risk-meter-panel" aria-label="Heuristic priority visualization">
+              <div className="risk-meter-labels"><span>Priority signal</span><span>{result.risk_score} / 100</span></div>
+              <div className="risk-meter-track" role="meter" aria-label="Heuristic priority score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, result.risk_score))}>
+                <span className="risk-meter-fill" style={{ width: Math.max(0, Math.min(100, result.risk_score)) + '%' }} />
+              </div>
+              <div className="risk-meter-scale"><span>Lower signal</span><span>Higher signal</span></div>
+              <p className="field-note">This is a heuristic triage score, not a probability or a verdict.</p>
+            </div>
             <p>{result.summary}</p><p className="field-note">{result.notice}</p>
             {result.model_suggestions && <div className="notice-panel" aria-label="Unverified local-model suggestions">
               <h3>Unverified local-model suggestions</h3>
