@@ -131,7 +131,7 @@ export default function InvestigatePage() {
         <p className="lead">Submit a suspicious message or URL as text. SATARK runs local deterministic checks and can use an optional self-hosted Ollama model. It will not visit the URL or execute files.</p>
         <section className="form-panel" aria-labelledby="investigation-title">
           <h2 id="investigation-title">New investigation</h2>
-          <p className="field-note">Analysis defaults to local-only rules. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
+          <p className="field-note">Local deterministic checks by default; no third-party AI key is required. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
           <label htmlFor="content">Suspicious URL or message</label>
           <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }}
             maxLength={12000} placeholder="Paste a suspicious URL or message here…" aria-describedby="content-hint" />
@@ -147,6 +147,14 @@ export default function InvestigatePage() {
             <div className="result-top">
               <span className="pill">{result.threat_category}</span>
               <strong id="analysis-result-title">Heuristic priority: {result.risk_score}/100</strong>
+            </div>
+            <div className="risk-meter-panel" aria-label="Heuristic priority visualization">
+              <div className="risk-meter-labels"><span>Priority signal</span><span>{result.risk_score} / 100</span></div>
+              <div className="risk-meter-track" role="meter" aria-label="Heuristic priority score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, result.risk_score))}>
+                <span className="risk-meter-fill" style={{ width: Math.max(0, Math.min(100, result.risk_score)) + '%' }} />
+              </div>
+              <div className="risk-meter-scale"><span>Lower signal</span><span>Higher signal</span></div>
+              <p className="field-note">This is a heuristic triage score, not a probability or a verdict.</p>
             </div>
             <p>{result.summary}</p><p className="field-note">{result.notice}</p>
             {result.model_suggestions && <div className="notice-panel" aria-label="Unverified local-model suggestions">

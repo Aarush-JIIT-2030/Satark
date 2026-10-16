@@ -1,0 +1,89 @@
+/* SATARK UI system v2 — route-wide consistency without changing security behavior. */
+:root {
+  color-scheme: dark;
+  --satark-bg: #080d12;
+  --satark-panel: #0e171f;
+  --satark-panel-raised: #13212a;
+  --satark-border: rgba(180, 210, 221, .14);
+  --satark-border-strong: rgba(157, 242, 209, .42);
+  --satark-ink: #eff7f7;
+  --satark-muted: #a4b5be;
+  --satark-dim: #7e929d;
+  --satark-accent: #9df2d1;
+  --satark-accent-ink: #07140f;
+  --satark-radius-sm: 10px;
+  --satark-radius-md: 15px;
+  --satark-radius-lg: 22px;
+  --satark-shadow: 0 18px 55px rgba(0, 0, 0, .22);
+}
+html { scroll-padding-top: 96px; }
+body { color: var(--satark-ink); background-color: var(--satark-bg); }
+::selection { color: #fff; background: rgba(157, 242, 209, .28); }
+:where(a, button, input, textarea, select, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--satark-accent);
+  outline-offset: 3px;
+}
+:where(.subpage, .sentinel-home, .shell) :where(h1, h2, h3, h4) { letter-spacing: -.025em; }
+:where(.subpage, .sentinel-home) :where(p, li) { text-wrap: pretty; }
+:where(.subpage) :where(.form-panel, .info-panel, .notice-panel, .quiz-card, .signal-card, .workspace-card) {
+  border-color: var(--satark-border);
+  border-radius: var(--satark-radius-md);
+}
+:where(.subpage) :where(.form-panel, .info-panel, .notice-panel, .quiz-card, .signal-card, .workspace-card) {
+  box-shadow: var(--satark-shadow);
+}
+:where(.subpage) :where(input, textarea, select) {
+  min-height: 42px;
+  border-radius: var(--satark-radius-sm);
+  border-color: var(--satark-border);
+  background: #091119;
+}
+:where(.subpage) textarea { min-height: 120px; }
+:where(.subpage) :where(input, textarea, select):focus-visible {
+  border-color: var(--satark-accent);
+  box-shadow: 0 0 0 3px rgba(157, 242, 209, .1);
+}
+:where(.subpage) :where(button, .btn, [role="button"]) { min-height: 40px; }
+:where(.subpage) :where(table) { width: 100%; border-collapse: separate; border-spacing: 0; }
+:where(.subpage) :where(th, td) { padding: 12px 14px; border-bottom: 1px solid var(--satark-border); text-align: left; vertical-align: top; }
+:where(.subpage) :where(th) { color: #d8e9e8; font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+:where(.subpage) :where(td) { color: #c0cfd4; font-size: 13px; overflow-wrap: anywhere; }
+:where(.subpage) :where(code, pre) { overflow-wrap: anywhere; }
+:where(.subpage) :where(.field-note, .muted, .text-muted) { color: var(--satark-muted); }
+:where(.subpage) :where(.empty-state, .empty-state-panel) {
+  padding: clamp(20px, 4vw, 36px);
+  border: 1px dashed var(--satark-border);
+  border-radius: var(--satark-radius-md);
+  background: linear-gradient(145deg, rgba(157, 242, 209, .035), rgba(255,255,255,.012));
+}
+.topbar { border-bottom-color: var(--satark-border); }
+.nav-links a { border-radius: 8px; }
+.nav-links a:focus-visible { outline-offset: 1px; }
+.sentinel-primary, .sentinel-secondary { min-height: 44px; border-radius: 12px; }
+.sentinel-primary { background: var(--satark-accent); color: var(--satark-accent-ink); }
+.sentinel-secondary { border-color: var(--satark-border); }
+.sentinel-workflow-card, .tool-card { border-radius: var(--satark-radius-md); }
+.sentinel-workflow-card:hover, .tool-card:hover { box-shadow: 0 16px 40px rgba(0,0,0,.18); }
+.sentinel-section-heading { gap: 24px; }
+.sentinel-section-heading > p { max-width: 470px; color: var(--satark-muted); }
+.sentinel-privacy-note { color: var(--satark-muted); }
+.risk-meter-panel { border-color: var(--satark-border); border-radius: var(--satark-radius-md); }
+:where(.subpage) :where(.status-chip, .badge, .pill) { max-width: 100%; overflow-wrap: anywhere; }
+.skip-link { position: absolute; left: 12px; top: 8px; z-index: 1000; transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); padding: 10px 14px; border-radius: 8px; background: var(--satark-accent); color: var(--satark-accent-ink); }
+@media (max-width: 760px) {
+  :where(.subpage) :where(table) { display: block; max-width: 100%; overflow-x: auto; }
+  :where(.subpage) :where(th, td) { padding: 10px; }
+  .sentinel-section-heading { align-items: flex-start; }
+  .sentinel-section-heading > p { max-width: none; }
+}
+@media (max-width: 480px) {
+  :where(.subpage) :where(.form-panel, .info-panel, .notice-panel, .quiz-card, .signal-card, .workspace-card) { padding: 16px; }
+  .sentinel-hero h1 { font-size: clamp(42px, 13vw, 60px); }
+  .sentinel-hero-actions { width: 100%; }
+  .sentinel-hero-actions > a { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
