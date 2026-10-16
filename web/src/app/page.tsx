@@ -39,6 +39,7 @@ export default function Home() {
               <a className="sentinel-secondary" href="/firstlight">Explore FIRSTLIGHT <ArrowRight size={15} /></a>
             </div>
             <div className="sentinel-trust-line"><span><LockKeyhole size={13} /> Privacy-aware checks</span><i /> <span><Eye size={13} /> Human-reviewed</span><i /> <span><Activity size={13} /> Signals, not verdicts</span></div>
+            <p className="field-note sentinel-privacy-note">Local deterministic checks by default. No third-party AI key is required. Optional self-hosted Ollama analysis is only used when configured.</p>
           </div>
 
           <div className="sentinel-visual" aria-label="Illustrative security investigation visualization">
