@@ -10,11 +10,11 @@ const links = [
   { href: '/tools', label: 'Tools' },
   { href: '/url', label: 'URL inspector' },
   { href: '/qr', label: 'QR review' },
-  { href: '/image-review', label: 'Image review' },
   { href: '/firstlight', label: 'FIRSTLIGHT' },
   { href: '/cases', label: 'Cases' },
+  { href: '/pdf-review', label: 'Documents' },
+  { href: '/media-review', label: 'Media' },
   { href: '/reports', label: 'Reports' },
-  { href: '/learn', label: 'Learn' },
   { href: '/login', label: 'Workspace' },
 ];
 
