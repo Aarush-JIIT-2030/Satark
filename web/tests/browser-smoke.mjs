@@ -13,6 +13,32 @@ await fs.mkdir(artifactDir, { recursive: true });
 
 const failures = [];
 
+function makeMinimalPdf(text) {
+  const safe = text.replace(/[\\()]/g, '\\const failures = [];').replace(/[^\x20-\x7e]/g, ' ');
+  const stream = 'BT /F1 12 Tf 50 740 Td (' + safe + ') Tj ET';
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    '5 0 obj\n<< /Length ' + Buffer.byteLength(stream, 'ascii') + ' >>\nstream\n' + stream + '\nendstream\nendobj\n',
+  ];
+  let output = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(output, 'ascii'));
+    output += object;
+  }
+  const xrefOffset = Buffer.byteLength(output, 'ascii');
+  output += 'xref\n0 6\n0000000000 65535 f \n';
+  for (const offset of offsets.slice(1)) {
+    output += String(offset).padStart(10, '0') + ' 00000 n \n';
+  }
+  output += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
+  return Buffer.from(output, 'ascii');
+}
+
+
 // The readiness endpoint must remain public-safe and report booleans only.
 {
   const response = await fetch(baseURL + '/api/health', { headers: { Accept: 'application/json' } });
@@ -42,6 +68,8 @@ const routes = [
   { path: '/qr', heading: /decode first|QR investigation/i },
   { path: '/firstlight', heading: /FIRSTLIGHT/i },
   { path: '/reports', heading: /report/i },
+  { path: '/pdf-review', heading: /review the document|document review/i },
+  { path: '/media-review', heading: /inspect the frames|media review/i },
   { path: '/cases', heading: /manage saved cases|case management/i },
   { path: '/learn', heading: /learn|safety|social-engineering|pause\. verify\. then act/i },
   { path: '/login', heading: /investigations that|welcome back/i },
@@ -264,6 +292,81 @@ async function inspectViewport(viewport, label) {
       await demoInput.fill('654321');
       await page.getByText(/demo interaction complete/i).waitFor();
     }
+
+    if (route.path === '/pdf-review') {
+      await page.locator('#document-file').setInputFiles({
+        name: 'synthetic-training-document.pdf',
+        mimeType: 'application/pdf',
+        buffer: makeMinimalPdf('URGENT: Please click this link immediately to confirm your account password.'),
+      });
+      await page.getByRole('button', { name: /extract and inspect locally/i }).click();
+      await page.getByRole('status').filter({ hasText: /local extraction complete/i }).waitFor();
+      await page.getByText('Urgency or time pressure', { exact: true }).waitFor();
+      await page.getByText('Credential or verification-code request', { exact: true }).waitFor();
+      assert.match(await page.locator('.local-review-hash').innerText(), /[a-f0-9]{64}/i,
+        'document review should fingerprint the original PDF bytes');
+      assert.match(await page.locator('body').innerText(), /not uploaded|no file upload/i,
+        'document review should explain its local-only processing boundary');
+    }
+    if (route.path === '/media-review') {
+      const mediaBytes = await page.evaluate(async () => {
+        if (!('MediaRecorder' in window) || !HTMLCanvasElement.prototype.captureStream) {
+          throw new Error('This Chromium build does not support synthetic local media fixtures.');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;
+        canvas.height = 180;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Could not create the synthetic video canvas.');
+        const stream = canvas.captureStream(8);
+        const preferredType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
+        const recorder = new MediaRecorder(stream, { mimeType: preferredType });
+        const parts = [];
+        recorder.addEventListener('dataavailable', event => { if (event.data.size) parts.push(event.data); });
+        const stopped = new Promise((resolve, reject) => {
+          recorder.addEventListener('stop', resolve, { once: true });
+          recorder.addEventListener('error', () => reject(new Error('Synthetic video recording failed.')), { once: true });
+        });
+        recorder.start(120);
+        const start = performance.now();
+        await new Promise(resolve => {
+          const draw = () => {
+            const elapsed = performance.now() - start;
+            context.fillStyle = elapsed % 500 < 250 ? '#132b3c' : '#b9f36b';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = elapsed % 500 < 250 ? '#b9f36b' : '#132b3c';
+            context.font = '18px sans-serif';
+            context.fillText('SATARK SYNTHETIC QA', 16, 92);
+            if (elapsed >= 2200) {
+              resolve();
+            } else {
+              setTimeout(draw, 100);
+            }
+          };
+          draw();
+        });
+        recorder.stop();
+        await stopped;
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(parts, { type: recorder.mimeType || 'video/webm' });
+        return Array.from(new Uint8Array(await blob.arrayBuffer()));
+      });
+      await page.locator('#media-file').setInputFiles({
+        name: 'synthetic-media-test.webm',
+        mimeType: 'video/webm',
+        buffer: Buffer.from(mediaBytes),
+      });
+      await page.getByRole('status').filter({ hasText: /video metadata loaded locally/i }).waitFor();
+      await page.getByRole('button', { name: /inspect six representative frames/i }).click();
+      await page.getByRole('heading', { name: /sampled frame timeline/i }).waitFor();
+      assert.equal(await page.locator('.media-frame-card').count(), 6,
+        'media review should sample six bounded representative frames');
+      assert.match(await page.locator('.local-review-hash').innerText(), /[a-f0-9]{64}/i,
+        'media review should fingerprint the original video bytes');
+      assert.match(await page.locator('body').innerText(), /not a deepfake|not an authenticity/i,
+        'media review should not claim a forensic authenticity verdict');
+    }
+
     if (route.path === '/firstlight') {
       await page.screenshot({ path: path.join(artifactDir, `firstlight-${label}.png`), fullPage: true });
       const launch = page.getByRole('button', { name: /launch training case/i });
