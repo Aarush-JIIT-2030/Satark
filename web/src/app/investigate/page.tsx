@@ -131,7 +131,7 @@ export default function InvestigatePage() {
         <p className="lead">Submit a suspicious message or URL as text. SATARK runs local deterministic checks and can use an optional self-hosted Ollama model. It will not visit the URL or execute files.</p>
         <section className="form-panel" aria-labelledby="investigation-title">
           <h2 id="investigation-title">New investigation</h2>
-          <p className="field-note">Analysis defaults to local-only rules. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
+          <p className="field-note">Local deterministic checks by default; no third-party AI key is required. If you configure your own Ollama instance, the submitted text is sent only to that self-hosted model. No third-party AI or reputation API is called in local-only mode. Never submit passwords, OTPs, private keys, or secrets.</p>
           <label htmlFor="content">Suspicious URL or message</label>
           <textarea id="content" value={input} onChange={event => { setInput(event.target.value); setError(''); setResult(null); }}
             maxLength={12000} placeholder="Paste a suspicious URL or message here…" aria-describedby="content-hint" />
