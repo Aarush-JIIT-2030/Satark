@@ -22,7 +22,8 @@ test('QR page uses bounded local decoding and never fetches decoded URLs', async
 test('capability directory labels unported media tools honestly', async () => {
   const source = await readFile(new URL('../src/app/tools/page.tsx', import.meta.url), 'utf8');
   assert.ok(source.includes('QR-code investigation'));
-  assert.ok(source.includes('PDF & document analysis'));
-  assert.ok(source.includes('Video & media analysis'));
-  assert.ok(source.includes('Not migrated'));
+  assert.ok(source.includes('PDF & text document review'));
+  assert.ok(source.includes('Video frame sampling'));
+  assert.ok(source.includes('OCR for scanned PDFs'));
+  assert.ok(source.includes('does not analyze audio'));
 });
