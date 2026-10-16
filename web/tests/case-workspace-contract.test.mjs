@@ -9,7 +9,8 @@ const browserSmoke = fs.readFileSync(new URL('./browser-smoke.mjs', import.meta.
 const api = fs.readFileSync(new URL('../src/app/api/cases/route.ts', import.meta.url), 'utf8');
 
 test('case workspace reads and creates cases through tenant-scoped authenticated helpers', () => {
-  assert.match(page, /listCases\(selected\.id\)/);
+  assert.match(page, /loadCaseList\\(selected\\.id\\)/);
+  assert.match(page, /listCases\\(tenantId\\)/);
   assert.match(page, /createCase\(tenant\.id, title\.trim\(\), severity\)/);
   assert.match(page, /tenant_id: tenant\.id/);
   assert.match(api, /created_by: user\.id/);
