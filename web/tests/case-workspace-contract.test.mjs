@@ -7,6 +7,7 @@ const navigation = fs.readFileSync(new URL('../src/app/site-header.tsx', import.
 const homepage = fs.readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8');
 const browserSmoke = fs.readFileSync(new URL('./browser-smoke.mjs', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('../src/app/api/cases/route.ts', import.meta.url), 'utf8');
+const firstlightCasePanel = fs.readFileSync(new URL('../src/app/firstlight/persistent-case-panel.tsx', import.meta.url), 'utf8');
 
 test('case workspace reads and creates cases through tenant-scoped authenticated helpers', () => {
   assert.ok(page.includes('loadCaseList(selected.id)'));
@@ -36,5 +37,8 @@ test('case workspace includes useful filtering and read-only handling for viewer
 test('case workspace is discoverable and included in browser acceptance', () => {
   assert.match(navigation, /href: '\/cases', label: 'Cases'/);
   assert.match(homepage, /title: 'Manage investigation cases'/);
+  assert.match(page, /\/firstlight\?case_id=/);
+  assert.match(firstlightCasePanel, /get\('case_id'\)/);
+  assert.match(firstlightCasePanel, /That case is not available in the currently selected workspace/);
   assert.match(browserSmoke, /path: '\/cases', heading: \/manage saved cases\|case management\/i/);
 });
