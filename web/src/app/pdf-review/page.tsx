@@ -135,13 +135,14 @@ export default function PdfReviewPage() {
 
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
-        const loadingTask = pdfjs.getDocument({
+        const pdfOptions = {
           data: bytes,
           isEvalSupported: false,
           enableXfa: false,
           useWorkerFetch: false,
           useWasm: false,
-        });
+        } as import('pdfjs-dist').DocumentInitParameters & { isEvalSupported?: boolean };
+        const loadingTask = pdfjs.getDocument(pdfOptions);
         disposePdf = () => loadingTask.destroy();
         const pdf = await loadingTask.promise;
         pages = pdf.numPages;
