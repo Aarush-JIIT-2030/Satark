@@ -5,8 +5,8 @@ import { readFile } from 'node:fs/promises';
 test('QR page uses bounded local decoding and never fetches decoded URLs', async () => {
   const source = await readFile(new URL('../src/app/qr/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /MAX_FILE_BYTES = 10 \* 1024 \* 1024/);
-  assert.match(source, /MAX_PIXELS = 40_000_000/);
-  assert.match(source, /BarcodeDetector/);
+  assert.match(source, /MAX_PIXELS = 12_000_000/);
+  assert.match(source, /BarcodeDetector/);\n  assert.match(source, /import jsQR from 'jsqr'/);\n  assert.match(source, /jsQR\(pixels\.data, pixels\.width, pixels\.height/);\n  assert.match(source, /bundled cross-browser decoder/);
   assert.match(source, /createImageBitmap/);
   assert.match(source, /detector\.detect\(bitmap\)/);
   assert.match(source, /did not open the payload|never opened automatically|never open/i);
