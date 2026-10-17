@@ -105,6 +105,100 @@ def verify_evidence(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def prioritize_evidence(evidence: list[dict[str, Any]], now: datetime | None = None) -> list[dict[str, Any]]:
+    """Rank evidence for triage using transparent, deterministic heuristics.
+
+    Scores are workflow hints, not calibrated risk probabilities. An integrity
+    mismatch raises review urgency but never makes the record trustworthy.
+    """
+    if not isinstance(evidence, list):
+        raise ValueError("Evidence must be a list.")
+    current = now or datetime.now(timezone.utc)
+    if not isinstance(current, datetime):
+        raise ValueError("now must be a datetime when supplied.")
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    current = current.astimezone(timezone.utc)
+
+    volatility_terms = {
+        "memory": 35, "process": 30, "connection": 28, "session": 26,
+        "authentication": 24, "login": 24, "network": 22, "identity": 20,
+        "registry": 15, "file": 12, "log": 12,
+    }
+    relevance_terms = (
+        "suspicious", "unusual", "novel", "powershell", "mfa",
+        "forwarding", "archive", "lookalike", "credential", "failed",
+        "unexpected", "malicious",
+    )
+    priorities = []
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        record = item.get("record", {})
+        if not isinstance(record, dict):
+            record = {}
+        evidence_id = str(item.get("evidence_id", "unknown"))
+        kind = str(record.get("kind", "")).lower()
+        source = str(record.get("source", "")).lower()
+        summary = str(record.get("summary", "")).lower()
+        searchable = " ".join((kind, source, summary))
+        integrity = verify_evidence(item)
+        reasons = []
+
+        volatility_matches = [(term, points) for term, points in volatility_terms.items()
+                              if term in kind or term in source]
+        volatility_score = max((points for _, points in volatility_matches), default=8)
+        reasons.append(
+            f"Volatility: {max((term for term, points in volatility_matches if points == volatility_score), default='general artifact')} "
+            f"(+{volatility_score})"
+        )
+
+        relevance_score = 20 if any(term in searchable for term in relevance_terms) else 8
+        reasons.append(f"Investigation relevance heuristic (+{relevance_score})")
+
+        if integrity["valid"]:
+            integrity_score = 10
+            reasons.append("Stored digest matches (+10)")
+            next_step = "Preserve the source snapshot and corroborate with independent logs."
+        else:
+            integrity_score = 25
+            reasons.append("Integrity mismatch or malformed baseline (+25 review urgency)")
+            next_step = "Quarantine from trusted conclusions; compare with a protected baseline and re-collect if possible."
+
+        recency_score = 0
+        timestamp = record.get("timestamp")
+        try:
+            observed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=timezone.utc)
+            age_minutes = (current - observed.astimezone(timezone.utc)).total_seconds() / 60
+            if 0 <= age_minutes <= 15:
+                recency_score = 15
+            elif 0 <= age_minutes <= 60:
+                recency_score = 12
+            elif 0 <= age_minutes <= 360:
+                recency_score = 8
+            elif 0 <= age_minutes <= 1440:
+                recency_score = 4
+            if recency_score:
+                reasons.append(f"Recent source timestamp (+{recency_score})")
+        except (TypeError, ValueError, OverflowError):
+            pass
+
+        score = min(100, volatility_score + relevance_score + integrity_score + recency_score)
+        level = "critical" if score >= 75 else "high" if score >= 55 else "medium" if score >= 35 else "low"
+        priorities.append({
+            "evidence_id": evidence_id,
+            "priority": level,
+            "priority_score": score,
+            "integrity": integrity["status"],
+            "reasons": reasons,
+            "recommended_next_step": next_step,
+        })
+
+    return sorted(priorities, key=lambda row: (-row["priority_score"], row["evidence_id"]))
+
+
 def _timeline_sort_key(value: Any) -> datetime:
     """Sort ISO timestamps by instant, treating naive values as UTC."""
     try:
@@ -231,6 +325,7 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
             {"name": "Verification Agent", "status": "completed", "summary": "Attached evidence IDs to findings and labelled inference and unknowns explicitly."},
         ],
         "findings": findings,
+        "evidence_priorities": prioritize_evidence(evidence),
         "timeline": timeline,
         "gaps": [
             "No memory image or live process snapshot is included in this synthetic case.",
