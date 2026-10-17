@@ -9,6 +9,7 @@ from firstlight_engine import (
     apply_simulated_response,
     create_demo_case,
     investigate_case,
+    prioritize_evidence,
     seal_evidence,
     verify_audit_chain,
     verify_evidence,
@@ -265,7 +266,7 @@ def render_firstlight() -> None:
                     "Why ranked": " · ".join(item["reasons"]),
                     "Recommended next step": item["recommended_next_step"],
                 }
-                for item in investigation["evidence_priorities"]
+                for item in (investigation.get("evidence_priorities") or prioritize_evidence(evidence))
             ], use_container_width=True, hide_index=True)
             st.markdown("#### Findings")
             for finding in investigation["findings"]:
