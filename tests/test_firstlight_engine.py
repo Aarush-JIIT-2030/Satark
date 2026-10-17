@@ -1,10 +1,12 @@
 import unittest
+from datetime import datetime, timezone
 
 from firstlight_engine import (
     append_audit,
     apply_simulated_response,
     create_demo_case,
     investigate_case,
+    prioritize_evidence,
     seal_evidence,
     verify_audit_chain,
     verify_evidence,
@@ -66,6 +68,38 @@ class FirstlightEngineTests(unittest.TestCase):
         timeline = investigate_case(self.case, evidence)["timeline"]
         self.assertEqual(timeline[0]["event_id"], "EV-001")
         self.assertEqual(timeline[1]["event_id"], "EV-002")
+
+    def test_evidence_priority_uses_volatility_relevance_and_recency(self):
+        now = datetime(2026, 10, 10, 9, 30, tzinfo=timezone.utc)
+        priorities = prioritize_evidence(self.evidence, now=now)
+        self.assertEqual(priorities[0]["evidence_id"], "EV-002")
+        self.assertEqual(priorities[0]["priority"], "critical")
+        self.assertTrue(any("Volatility" in reason for reason in priorities[0]["reasons"]))
+        self.assertTrue(any("Recent source timestamp" in reason for reason in priorities[0]["reasons"]))
+        scores = [item["priority_score"] for item in priorities]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_priority_mismatch_is_flagged_for_quarantine_not_trusted(self):
+        tampered = dict(self.evidence[0])
+        tampered["record"] = dict(tampered["record"], summary="Changed after sealing")
+        result = prioritize_evidence([tampered])[0]
+        self.assertIn("MISMATCH", result["integrity"])
+        self.assertIn("Quarantine", result["recommended_next_step"])
+        self.assertTrue(any("Integrity mismatch" in reason for reason in result["reasons"]))
+
+    def test_priority_rejects_invalid_container_and_skips_malformed_items(self):
+        with self.assertRaises(ValueError):
+            prioritize_evidence(None)
+        results = prioritize_evidence([None, {"evidence_id": "broken", "record": "bad"}])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["evidence_id"], "broken")
+
+    def test_investigation_includes_priorities_for_evidence(self):
+        result = investigate_case(self.case, self.evidence)
+        known = {item["evidence_id"] for item in self.evidence}
+        self.assertEqual({item["evidence_id"] for item in result["evidence_priorities"]}, known)
+        self.assertTrue(all(item["priority"] in {"critical", "high", "medium", "low"}
+                            for item in result["evidence_priorities"]))
 
     def test_audit_chain_detects_modification(self):
         chain = append_audit([], "created", "tester", {"case": "demo"})

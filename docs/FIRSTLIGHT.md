@@ -8,6 +8,7 @@ FIRSTLIGHT is SATARK's primary incident-response workspace. Existing SATARK text
 - Evidence records sealed with SHA-256 over canonical JSON.
 - Deterministic evidence verification and an interactive tamper challenge.
 - Evidence-linked detection/correlation/verification workflow.
+- Transparent deterministic evidence triage ranking based on volatility, relevance, timestamp recency and integrity status.
 - Timeline reconstruction with explicit evidence gaps and uncertainty.
 - Human approval/rejection for simulated response proposals.
 - Hash-chained in-session audit events and JSON report export.
@@ -26,4 +27,6 @@ Run:
 python -m unittest tests.test_firstlight_engine -v
 ```
 
-The main Streamlit app exposes the workspace through its sidebar. JSON/CSV import and the deterministic rule checks do not require an AI API key. Imported data remains in Streamlit session state and is not durable case storage. The artifact hash identifies the exact uploaded bytes but does not authenticate the source, prove truthfulness, or establish forensic chain of custody. Detection rules are intentionally small and can miss activity or produce false positives.
+The main Streamlit app exposes the workspace through its sidebar. JSON/CSV import and the deterministic rule checks do not require an AI API key. Imported data remains in Streamlit session state and is not durable case storage. The artifact hash identifies the exact uploaded bytes but does not authenticate the source, prove truthfulness, or establish forensic chain of custody. Detection rules are intentionally small and can miss activity or produce false positives. Evidence priority scores are explainable triage heuristics, not calibrated risk probabilities; mismatched evidence is escalated for review and must not be treated as trustworthy.
+
+See [FIRSTLIGHT implementation status](FIRSTLIGHT_IMPLEMENTATION_STATUS.md) for the current partial and unimplemented capabilities.
