@@ -254,6 +254,19 @@ def render_firstlight() -> None:
         if investigation:
             st.markdown("#### Specialized agent run")
             st.dataframe(investigation["agents"], use_container_width=True, hide_index=True)
+            st.markdown("#### Evidence triage priority")
+            st.caption("Deterministic triage hints based on artifact volatility, text relevance, timestamp recency and integrity. Scores are not probabilities; a hash mismatch increases review urgency but never makes evidence trustworthy.")
+            st.dataframe([
+                {
+                    "Evidence ID": item["evidence_id"],
+                    "Priority": item["priority"].upper(),
+                    "Score": item["priority_score"],
+                    "Integrity": item["integrity"],
+                    "Why ranked": " · ".join(item["reasons"]),
+                    "Recommended next step": item["recommended_next_step"],
+                }
+                for item in investigation["evidence_priorities"]
+            ], use_container_width=True, hide_index=True)
             st.markdown("#### Findings")
             for finding in investigation["findings"]:
                 with st.container(border=True):
