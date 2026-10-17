@@ -59,6 +59,20 @@ test('tenant RLS blocks cross-tenant reads and writes for two distinct users', {
     assert.equal(read.status, 200, 'RLS should return an empty list instead of leaking foreign rows');
     assert.deepEqual(await read.json(), [], 'a user must not read another tenant’s cases');
 
+    // Tenant isolation applies to every persisted investigation resource, not
+    // only the parent case table. Query each resource directly so this test
+    // exercises database RLS rather than relying on frontend/API filtering.
+    for (const table of ['satark_evidence', 'satark_findings', 'satark_reports']) {
+      const resourceQuery = new URLSearchParams({
+        select: 'id,tenant_id',
+        tenant_id: 'eq.' + foreignTenant,
+        limit: '20',
+      });
+      const resourceRead = await rest(session, table + '?' + resourceQuery);
+      assert.equal(resourceRead.status, 200, table + ' cross-tenant read should be safely filtered by RLS');
+      assert.deepEqual(await resourceRead.json(), [], table + ' must not expose another tenant’s records');
+    }
+
     const write = await rest(session, 'satark_cases', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
