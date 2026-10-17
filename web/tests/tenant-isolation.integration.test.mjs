@@ -86,6 +86,19 @@ const viewerRequired = [
   'SATARK_TEST_VIEWER_TENANT_ID',
 ];
 const viewerMissing = viewerRequired.filter(key => !env[key]);
+
+// The ordinary unit-test suite may skip live integration checks when no test
+// project is configured. The dedicated integration command must never report a
+// green run with these checks skipped: missing fixtures are a configuration error.
+const requireIntegration = env.SATARK_REQUIRE_INTEGRATION === '1'
+  || env.npm_lifecycle_event === 'test:integration';
+if (requireIntegration && (missing.length || viewerMissing.length)) {
+  throw new Error(
+    'Tenant integration tests require dedicated, non-admin test fixtures. Missing: '
+    + [...new Set([...missing, ...viewerMissing])].join(', '),
+  );
+}
+
 test('viewer role cannot create or update cases', {
   skip: viewerMissing.length ? 'Set up a dedicated viewer test account; missing: ' + viewerMissing.join(', ') : false,
 }, async () => {
