@@ -251,6 +251,9 @@ export default function MediaReviewPage() {
     } else if (!width || !height || width * height > MAX_VIDEO_PIXELS) {
       setError('Frame dimensions are invalid or exceed the 4K pixel-processing limit.');
     } else {
+      // A container may emit a late error after usable metadata has arrived.
+      // Keep the metadata state honest; frame decoding failures are surfaced by inspect().
+      setError('');
       setNotice('Video metadata loaded locally. No upload has occurred.');
     }
   }
@@ -335,7 +338,11 @@ export default function MediaReviewPage() {
           <label className="field-label" htmlFor="media-file">Video file</label>
           <input id="media-file" type="file" accept="video/mp4,video/webm,.mp4,.webm" onChange={event => chooseFile(event.target.files?.[0] ?? null)} />
           {file && <div className="file-selection"><Video size={18} /><div><strong>{file.name}</strong><span>{(file.size / (1024 * 1024)).toFixed(2)} MiB · local preview</span></div><button type="button" className="btn btn-secondary" onClick={clear} disabled={busy}><RotateCcw size={14} /> Clear</button></div>}
-          {objectUrl && <div className="local-video-preview"><video ref={videoRef} src={objectUrl} controls playsInline preload="metadata" onLoadedMetadata={handleMetadata} onError={() => setError('This browser cannot decode the selected video. Try a supported MP4 or WebM re-encoded with a browser-compatible codec.')} aria-label="Locally loaded video preview" /></div>}
+          {objectUrl && <div className="local-video-preview"><video ref={videoRef} src={objectUrl} controls playsInline preload="metadata" onLoadedMetadata={handleMetadata} onError={event => {
+            const video = event.currentTarget;
+            const hasUsableMetadata = Number.isFinite(video.duration) && video.duration > 0 && video.videoWidth > 0 && video.videoHeight > 0;
+            if (!hasUsableMetadata) setError('This browser cannot decode the selected video. Try a supported MP4 or WebM re-encoded with a browser-compatible codec.');
+          }} aria-label="Locally loaded video preview" /></div>}
           {metadata && (
             <div className="local-review-stats">
               <article className="local-review-stat"><span>DURATION</span><strong>{formatDuration(metadata.durationSeconds)}</strong></article>
