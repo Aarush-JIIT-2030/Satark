@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Menu, X, ShieldCheck } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 const links = [
   { href: '/investigate', label: 'Investigate' },
@@ -14,7 +14,7 @@ const links = [
   { href: '/reports', label: 'Reports' },
 ];
 
-export default function SiteHeader({ status = false }: { status?: boolean }) {
+export default function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Tool-detail routes belong to the Tools section even though each has its own URL.
@@ -47,9 +47,11 @@ export default function SiteHeader({ status = false }: { status?: boolean }) {
               </Link>
             );
           })}
+          <Link href="/login" className={'nav-cta' + (pathname === '/login' ? ' active' : '')}
+            aria-current={pathname === '/login' ? 'page' : undefined} onClick={() => setMobileOpen(false)}>
+            Sign in
+          </Link>
         </nav>
-        {status && <div className="status"><span className="status-dot" aria-hidden="true" /> SECURITY WORKSPACE</div>}
-        <div className="header-trust" aria-label="Security-first product"><ShieldCheck size={13} /> EVIDENCE FIRST</div>
       </header>
     </>
   );

@@ -4,7 +4,7 @@ import SiteHeader from '../site-header';
 
 import { useMemo, useState } from 'react';
 import PersistentCasePanel from './persistent-case-panel';
-import { parseCsv, parseIsoTimestamp } from '../../lib/firstlight-import.mjs';
+import { parseCsv, parseIsoTimestamp, toggleSimulatedTamper } from '../../lib/firstlight-import.mjs';
 
 type Evidence = { id: string; time: string; source: string; kind: string; summary: string; digest: string; tampered?: boolean };
 type Audit = { time: string; action: string; detail: string };
@@ -122,10 +122,7 @@ export default function FirstlightPage() {
   async function tamper(item: Evidence) {
     const changed = evidence.map(e => {
       if (e.id !== item.id) return e;
-      const summary = e.tampered
-        ? e.summary.replace(/ \\[SIMULATED TAMPER\\]$/, '')
-        : e.summary + ' [SIMULATED TAMPER]';
-      return { ...e, summary };
+      return { ...e, summary: toggleSimulatedTamper(e.summary, Boolean(e.tampered)) };
     });
     await verifyIntegrity(changed);
   }

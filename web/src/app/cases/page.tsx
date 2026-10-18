@@ -177,7 +177,7 @@ export default function CasesPage() {
 
   return (
     <main className="shell">
-      <SiteHeader status />
+      <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
         <div className="eyebrow">WORKSPACE / CASE MANAGEMENT</div>
         <h1>Manage <span>saved cases.</span></h1>

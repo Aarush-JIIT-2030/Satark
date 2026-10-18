@@ -73,7 +73,7 @@ export default function UrlReviewPage() {
           <ul>
             <li>Check the registered domain, spelling and destination through a trusted independent channel.</li>
             <li>Never enter passwords, payment details or one-time codes because a message creates urgency.</li>
-            <li>For broader message analysis, use <Link href="/investigate">text and message triage</Link>. Production analysis remains unavailable until the shared rate limiter is configured.</li>
+            <li>For broader message analysis, use <Link href="/investigate">text and message triage</Link>. Production deployments need the shared rate limiter configured before analysis can run.</li>
           </ul>
         </section>
       </div>
