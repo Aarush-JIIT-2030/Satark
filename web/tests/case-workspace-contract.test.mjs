@@ -36,7 +36,8 @@ test('case workspace includes useful filtering and read-only handling for viewer
 
 test('case workspace is discoverable and included in browser acceptance', () => {
   assert.match(navigation, /href: '\/cases', label: 'Cases'/);
-  assert.match(homepage, /title: 'Persistent case workspace'/);
+  assert.match(navigation, /toolDetailRoutes\.has\(pathname\)/, 'tool detail routes should retain the Tools navigation context');
+  assert.match(homepage, /Persistent case workspace/);
   assert.match(page, /\/firstlight\?case_id=/);
   assert.match(firstlightCasePanel, /get\('case_id'\)/);
   assert.match(firstlightCasePanel, /That case is not available in the currently selected workspace/);
