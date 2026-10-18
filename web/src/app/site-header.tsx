@@ -17,6 +17,8 @@ const links = [
 export default function SiteHeader({ status = false }: { status?: boolean }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Tool-detail routes belong to the Tools section even though each has its own URL.
+  const toolDetailRoutes = new Set(['/url', '/image-review', '/qr', '/pdf-review', '/media-review']);
 
   return (
     <>
@@ -35,7 +37,9 @@ export default function SiteHeader({ status = false }: { status?: boolean }) {
         </button>
         <nav id="primary-navigation" className={'nav-links' + (mobileOpen ? ' nav-links-open' : '')} aria-label="Main navigation">
           {links.map(link => {
-            const active = pathname === link.href || (link.href === '/firstlight' && pathname.startsWith('/firstlight/'));
+            const active = pathname === link.href
+              || (link.href === '/firstlight' && pathname.startsWith('/firstlight/'))
+              || (link.href === '/tools' && toolDetailRoutes.has(pathname));
             return (
               <Link key={link.href} href={link.href} className={active ? 'active' : undefined}
                 aria-current={active ? 'page' : undefined} onClick={() => setMobileOpen(false)}>
