@@ -2,11 +2,9 @@
 
 import SiteHeader from './site-header';
 import ServiceReadiness from '../components/service-readiness';
-import { Radar } from '../components/react-bits';
 import {
-  ArrowDownRight, ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, Fingerprint,
-  FileSearch, FileText, Film, BookOpen, Activity, LockKeyhole, ScanLine, CircleDot, ChevronRight,
-  Eye, ShieldAlert
+  ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, FileText, BookOpen, Activity,
+  LockKeyhole, ScanLine, ChevronRight, Eye, ShieldAlert, AlertTriangle, Link2, KeyRound,
 } from 'lucide-react';
 
 const workflows = [
@@ -37,16 +35,15 @@ const principles = [
 
 export default function Home() {
   return (
-    <main className="shell sentinel-home">
-      <SiteHeader status />
-      <div className="container sentinel-container" id="main-content" tabIndex={-1}>
-        <ServiceReadiness />
+    <main className="shell">
+      <SiteHeader />
+      <div className="container" id="main-content" tabIndex={-1}>
 
         <section className="sentinel-hero" aria-labelledby="hero-title">
           <div className="sentinel-hero-copy">
-            <div className="sentinel-kicker"><span className="kicker-orb" /> DIGITAL THREAT INVESTIGATION <span className="kicker-divider" /> SATARK SENTINEL</div>
-            <h1 id="hero-title">Clarity in the<br /><span>noise.</span></h1>
-            <p className="sentinel-lede">Suspicious message? Unexpected link? Start with the evidence—not the panic. SATARK helps you inspect digital threats with transparent signals and clear next steps.</p>
+            <div className="sentinel-kicker"><span className="kicker-orb" aria-hidden="true" /> Digital threat investigation</div>
+            <h1 id="hero-title">Check it before you <span>trust it.</span></h1>
+            <p className="sentinel-lede">Suspicious message, link, QR code or document? SATARK inspects it with transparent signals and tells you what to verify next—without visiting anything on your behalf.</p>
             <div className="sentinel-hero-actions">
               <a className="sentinel-primary" href="/investigate"><ScanSearch size={17} /> Start an investigation <ArrowUpRight size={16} /></a>
               <a className="sentinel-secondary" href="/firstlight">Explore FIRSTLIGHT <ArrowRight size={15} /></a>
@@ -55,27 +52,25 @@ export default function Home() {
             <p className="field-note sentinel-privacy-note">Local deterministic checks by default. No third-party AI key is required. Optional self-hosted Ollama analysis is only used when configured.</p>
           </div>
 
-          <div className="sentinel-visual" aria-label="Illustrative security investigation visualization">
-            <div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" />
-            <div className="visual-topline"><span><span className="visual-live-dot" /> INVESTIGATION CONSOLE</span><span className="visual-index">SYS / 001</span></div>
-            <div className="visual-radar"><Radar color="#9df2d1" mode="sweep" speed={0.65} trail={0.24} scale={0.91} ringCount={4} spokeCount={10} targets={4} clutter={0.22} mouseInteraction={false} grain={0.008} /></div>
-            <div className="visual-center-label"><span className="center-cross">✳</span><span>FOLLOW THE EVIDENCE</span></div>
-            <div className="visual-foot">
-              <div className="visual-foot-title"><span>TRIAGE FRAMEWORK</span><span className="illustrative-chip">ILLUSTRATIVE</span></div>
-              <div className="visual-steps">
-                <div><span className="step-num">01</span><span><b>Collect context</b><small>Preserve source and details</small></span><CircleDot size={14} /></div>
-                <div><span className="step-num">02</span><span><b>Inspect signals</b><small>Separate facts from hypotheses</small></span><CircleDot size={14} /></div>
-                <div><span className="step-num">03</span><span><b>Verify independently</b><small>Choose a safer next step</small></span><CircleDot size={14} /></div>
-              </div>
+          <div className="sentinel-visual" aria-label="Illustrative example of an analysis result">
+            <div className="sample-head"><span><span className="visual-live-dot" aria-hidden="true" /> Example result</span><span className="illustrative-chip">Illustrative</span></div>
+            <div className="sample-input"><b>Message under review</b>“Your account will be suspended in 24 hours. Verify now at secure-login.example/verify”</div>
+            <div className="sample-result">
+              <div className="risk-meter-labels"><span>Triage signal strength</span><span>High</span></div>
+              <div className="risk-meter-track"><span className="risk-meter-fill" style={{ width: '82%' }} /></div>
+              <ul className="sample-signals">
+                <li><AlertTriangle size={15} aria-hidden="true" /><span>Urgency pressure<small>Deadline language designed to rush a decision</small></span></li>
+                <li><KeyRound size={15} aria-hidden="true" /><span>Credential request<small>Asks you to sign in through a supplied link</small></span></li>
+                <li><Link2 size={15} aria-hidden="true" /><span>Unfamiliar destination<small>Link text is not the organisation’s own domain</small></span></li>
+              </ul>
             </div>
-            <div className="visual-stamp"><ShieldCheck size={14} /> EVIDENCE FIRST</div>
+            <p className="sample-foot"><ShieldCheck size={14} aria-hidden="true" /> Next step: do not click. Open the official app or site yourself.</p>
           </div>
-          <div className="hero-bottom-rule"><span>01 / INVESTIGATE WITH INTENTION</span><span>SCROLL TO EXPLORE <ArrowDownRight size={13} /></span></div>
         </section>
 
         <section className="sentinel-workflows" aria-labelledby="workflow-title">
           <div className="sentinel-section-heading">
-            <div><div className="sentinel-overline">YOUR WORKSPACE</div><h2 id="workflow-title">Choose the right starting point.</h2></div>
+            <div><div className="sentinel-overline">Your workspace</div><h2 id="workflow-title">Choose the right starting point.</h2></div>
             <p>Start with one focused workflow. Each tool explains what it can check, what it cannot prove, and what to verify next.</p>
           </div>
           <div className="sentinel-workflow-grid">
@@ -90,13 +85,13 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="tools-section home-tools" aria-labelledby="capability-title">
+        <section className="home-tools" aria-labelledby="capability-title">
           <div className="sentinel-section-heading">
-            <div><div className="sentinel-overline">CAPABILITY MAP</div><h2 id="capability-title">Know what is live—and what is not.</h2></div>
+            <div><div className="sentinel-overline">Capability map</div><h2 id="capability-title">Know what is available—and what is not.</h2></div>
             <p>See what is available today, plus the boundaries that matter. A missing signal never proves content is safe.</p>
           </div>
           <details className="tools-disclosure">
-            <summary><span><strong>Browse the full capability map</strong><small>Available tools, current boundaries and migration status</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
+            <summary><span><strong>Browse the full capability map</strong><small>Every tool, its current status and its boundaries</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
             <div className="tool-grid">
               {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
                 <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
@@ -108,21 +103,24 @@ export default function Home() {
         </section>
 
         <section className="sentinel-method" aria-labelledby="method-title">
-          <div className="method-intro"><div className="sentinel-overline">THE SATARK STANDARD</div><h2 id="method-title">Confidence comes<br />from <span>verification.</span></h2><p>Security tools should help you think clearly—not make decisions for you.</p><a href="/tools" className="method-link">Explore all capabilities <ArrowUpRight size={15} /></a></div>
+          <div className="method-intro"><div className="sentinel-overline">The SATARK standard</div><h2 id="method-title">Confidence comes<br />from <span>verification.</span></h2><p>Security tools should help you think clearly—not make decisions for you.</p><a href="/tools" className="method-link">Explore all capabilities <ArrowUpRight size={15} /></a></div>
           <div className="method-principles">
             {principles.map(({ icon: Icon, title, text }, i) => <article key={title} className="principle-row"><span className="principle-icon"><Icon size={18} /></span><span className="principle-number">0{i + 1}</span><div><h3>{title}</h3><p>{text}</p></div><ChevronRight className="principle-chevron" size={17} /></article>)}
           </div>
         </section>
 
         <section className="sentinel-boundary" aria-label="Capability status">
-          <div className="boundary-icon"><ShieldAlert size={20} /></div><div><strong>Built for careful triage—not false certainty.</strong><p>Document review now extracts bounded PDF and text content locally; video review samples representative MP4/WebM frames locally. OCR for scanned PDFs, audio analysis and deepfake detection remain unsupported. QR destinations are never visited automatically, and persistent case history still depends on a configured workspace database. A missing signal never proves that content is safe.</p></div><a href="/tools">Capability status <ArrowUpRight size={15} /></a>
+          <div className="boundary-icon"><ShieldAlert size={20} /></div>
+          <div><strong>Built for careful triage—not false certainty.</strong><p>OCR for scanned PDFs, audio analysis and deepfake detection are not supported. QR destinations and submitted URLs are never visited automatically, and persistent case history depends on a configured workspace database. A missing signal never proves that content is safe.</p></div>
+          <a href="/tools">Capability status <ArrowUpRight size={15} /></a>
         </section>
 
+        <div style={{ marginTop: 32 }}><ServiceReadiness /></div>
+
         <section className="sentinel-learning-strip">
-          <div className="learning-mark"><BookOpen size={20} /></div><div><div className="sentinel-overline">BUILD YOUR INSTINCTS</div><h2>Practice spotting the pressure.</h2><p>Learn the patterns behind urgency, impersonation, and social engineering in a safe environment.</p></div><a href="/learn" className="sentinel-secondary">Open the academy <ArrowRight size={15} /></a>
+          <div className="learning-mark"><BookOpen size={20} /></div><div><div className="sentinel-overline">Build your instincts</div><h2>Practice spotting the pressure.</h2><p>Learn the patterns behind urgency, impersonation, and social engineering in a safe environment.</p></div><a href="/learn" className="sentinel-secondary">Open the academy <ArrowRight size={15} /></a>
         </section>
       </div>
-      <footer className="sentinel-footer"><a href="/" className="footer-brand"><span className="footer-brand-mark">S</span> SATARK <span className="footer-separator">/</span> SENTINEL</a><span>Evidence-led digital security</span><span>Local-first triage · Human review required</span></footer>
     </main>
   );
 }
