@@ -14,6 +14,38 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
+async function readBoundedJson(request: Request): Promise<{ ok: true; body: unknown } | { ok: false; status: 400 | 413 }> {
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null) {
+    const size = Number(contentLength);
+    if (!Number.isFinite(size) || size < 0) return { ok: false, status: 400 };
+    if (size > MAX_BODY_BYTES) return { ok: false, status: 413 };
+  }
+  if (!request.body) return { ok: false, status: 400 };
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let raw = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return { ok: false, status: 413 };
+      }
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+    return { ok: true, body: JSON.parse(raw) as unknown };
+  } catch {
+    return { ok: false, status: 400 };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function configuration() {
   const rawUrl = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -112,16 +144,9 @@ export async function POST(request: Request) {
   const user = await authenticate(token, config);
   if (!user) return jsonError('Your session is invalid or expired.', 401);
 
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > MAX_BODY_BYTES) return jsonError('Request body is too large.', 413);
-  let body: unknown;
-  try {
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) return jsonError('Request body is too large.', 413);
-    body = JSON.parse(raw);
-  } catch {
-    return jsonError('A valid JSON body is required.', 400);
-  }
+  const parsed = await readBoundedJson(request);
+  if (!parsed.ok) return jsonError(parsed.status === 413 ? 'Request body is too large.' : 'A valid JSON body is required.', parsed.status);
+  const body = parsed.body;
   if (!body || typeof body !== 'object' || Array.isArray(body)) return jsonError('A JSON object is required.', 400);
 
   const input = body as Record<string, unknown>;
@@ -164,14 +189,9 @@ export async function PATCH(request: Request) {
   const user = await authenticate(token, config);
   if (!user) return jsonError('Your session is invalid or expired.', 401);
 
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > MAX_BODY_BYTES) return jsonError('Request body is too large.', 413);
-  let body: unknown;
-  try {
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) return jsonError('Request body is too large.', 413);
-    body = JSON.parse(raw);
-  } catch { return jsonError('A valid JSON body is required.', 400); }
+  const parsed = await readBoundedJson(request);
+  if (!parsed.ok) return jsonError(parsed.status === 413 ? 'Request body is too large.' : 'A valid JSON body is required.', parsed.status);
+  const body = parsed.body;
   if (!body || typeof body !== 'object' || Array.isArray(body)) return jsonError('A JSON object is required.', 400);
   const input = body as Record<string, unknown>;
   const id = input.id, tenantId = input.tenant_id;
