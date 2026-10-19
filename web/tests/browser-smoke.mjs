@@ -309,9 +309,9 @@ async function inspectViewport(viewport, label) {
       const videoElement = page.locator('video[aria-label="Locally loaded video preview"]');
       const mediaStatus = await Promise.race([
         page.getByRole('status').filter({ hasText: /video metadata loaded locally/i }).waitFor().then(() => ({ kind: 'ready' })),
-        page.getByRole('alert').waitFor().then(async () => ({
+        page.locator('.local-review-page').getByRole('alert').waitFor().then(async () => ({
           kind: 'error',
-          text: await page.getByRole('alert').innerText().catch(() => 'No error text.'),
+          text: await page.locator('.local-review-page').getByRole('alert').innerText().catch(() => 'No error text.'),
           video: await videoElement.evaluate(video => {
             const target = video;
             return {
