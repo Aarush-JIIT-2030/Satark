@@ -76,8 +76,22 @@ async function authRequest(path: string, body: Record<string, unknown>) {
   return data;
 }
 
+async function syncServerSession(session: SatarkSession | null) {
+  const response = await fetch('/api/auth/session', {
+    method: session ? 'POST' : 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    ...(session ? { body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at }) } : {}),
+    cache: 'no-store',
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new Error('Could not establish a secure server session. Please try again.');
+}
+
 export async function signIn(email: string, password: string) {
-  return saveSession(await authRequest('token?grant_type=password', { email, password }));
+  const session = saveSession(await authRequest('token?grant_type=password', { email, password }));
+  try { await syncServerSession(session); }
+  catch (error) { clearSession(); throw error; }
+  return session;
 }
 
 export async function requestPasswordReset(email: string, redirectTo: string) {
@@ -123,7 +137,12 @@ export async function completePasswordReset(accessToken: string, password: strin
 
 export async function signUp(email: string, password: string) {
   const data = await authRequest('signup', { email, password });
-  if (data.access_token && data.refresh_token) return { session: saveSession(data), confirmationRequired: false };
+  if (data.access_token && data.refresh_token) {
+    const session = saveSession(data);
+    try { await syncServerSession(session); }
+    catch (error) { clearSession(); throw error; }
+    return { session, confirmationRequired: false };
+  }
   return { session: null, confirmationRequired: true };
 }
 
@@ -134,7 +153,9 @@ export async function getSession(): Promise<SatarkSession | null> {
   if (current.expires_at > Date.now() + 60_000) return current;
   try {
     const refreshed = await authRequest('token?grant_type=refresh_token', { refresh_token: current.refresh_token });
-    return saveSession(refreshed);
+    const session = saveSession(refreshed);
+    await syncServerSession(session);
+    return session;
   } catch {
     clearSession();
     return null;
@@ -151,6 +172,7 @@ export async function signOut() {
       cache: 'no-store',
     }).catch(() => undefined);
   }
+  await fetch('/api/auth/session', { method: 'DELETE', credentials: 'same-origin', cache: 'no-store' }).catch(() => undefined);
   clearSession();
 }
 
