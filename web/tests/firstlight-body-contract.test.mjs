@@ -21,3 +21,14 @@ test('saved FIRSTLIGHT evidence reload preserves its original browser digest', a
   assert.ok(source.includes('never substitute a different hash'),
     'the integrity boundary must remain documented beside the mapping');
 });
+
+
+test('saved FIRSTLIGHT reports include the visible session audit and simulated decisions', async () => {
+  const source = await readFile(new URL('../src/app/firstlight/persistent-case-panel.tsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('audit_events_visible_in_session: audit.map(event => ({ ...event }))'),
+    'the saved report must preserve the session audit instead of exporting an empty array');
+  assert.ok(source.includes('simulated_response_decisions: [...actions]'),
+    'the saved report must preserve the explicit simulated response decisions');
+  assert.ok(source.includes('Database-triggered audit events are separate from this session log'),
+    'session events must not be misrepresented as server audit events');
+});
