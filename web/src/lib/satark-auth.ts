@@ -20,14 +20,18 @@ function config() {
 function saveSession(value: unknown): SatarkSession {
   if (!value || typeof value !== 'object') throw new Error('Authentication returned an invalid session.');
   const raw = value as Record<string, unknown>;
-  if (typeof raw.access_token !== 'string' || typeof raw.refresh_token !== 'string' ||
-      !raw.user || typeof raw.user !== 'object' || typeof (raw.user as Record<string, unknown>).id !== 'string') {
+  if (typeof raw.access_token !== 'string' || raw.access_token.length < 20 || raw.access_token.length > 8192 ||
+      typeof raw.refresh_token !== 'string' || raw.refresh_token.length < 20 || raw.refresh_token.length > 8192 ||
+      !raw.user || typeof raw.user !== 'object' || typeof (raw.user as Record<string, unknown>).id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test((raw.user as Record<string, unknown>).id as string)) {
     throw new Error('Authentication did not return a complete session.');
   }
   const session: SatarkSession = {
     access_token: raw.access_token,
     refresh_token: raw.refresh_token,
-    expires_at: Date.now() + Math.max(0, Number(raw.expires_in || 3600)) * 1000,
+    expires_at: typeof raw.expires_at === 'number' && Number.isFinite(raw.expires_at)
+      ? raw.expires_at * 1000
+      : Date.now() + Math.max(0, Math.min(86400, Number(raw.expires_in || 3600))) * 1000,
     user: raw.user as SatarkSession['user'],
   };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -39,7 +43,9 @@ export function readStoredSession(): SatarkSession | null {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as SatarkSession;
-    if (!value.access_token || !value.refresh_token || !value.user?.id) return null;
+    if (typeof value.access_token !== 'string' || value.access_token.length < 20 || value.access_token.length > 8192 ||
+        typeof value.refresh_token !== 'string' || value.refresh_token.length < 20 || value.refresh_token.length > 8192 ||
+        !value.user?.id || !Number.isFinite(value.expires_at)) return null;
     return value;
   } catch {
     return null;
