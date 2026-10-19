@@ -369,6 +369,12 @@ async function inspectViewport(viewport, label) {
 
     if (route.path === '/firstlight') {
       await page.screenshot({ path: path.join(artifactDir, `firstlight-${label}.png`), fullPage: true });
+      // FIRSTLIGHT is intentionally session-protected. A smoke run without a test
+      // identity must verify the login redirect, never bypass the access boundary.
+      if (new URL(page.url()).pathname === '/login') {
+        await page.getByRole('button', { name: /sign in securely/i }).waitFor();
+        continue;
+      }
       const launch = page.locator('.firstlight-hero .btn-primary');
       await launch.waitFor();
       await launch.click();
