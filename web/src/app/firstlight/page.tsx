@@ -5,6 +5,7 @@ import SiteHeader from '../site-header';
 import { useMemo, useState } from 'react';
 import PersistentCasePanel from './persistent-case-panel';
 import { parseCsv, parseIsoTimestamp } from '../../lib/firstlight-import.mjs';
+import { buildFirstlightFindings, getTrustedFirstlightEvidence } from '../../lib/firstlight-investigation.mjs';
 
 type Evidence = { id: string; time: string; source: string; kind: string; summary: string; digest: string; tampered?: boolean };
 type Audit = { time: string; action: string; detail: string };
@@ -40,20 +41,10 @@ export default function FirstlightPage() {
   const [importName, setImportName] = useState('');
   const [sourceFileSha256, setSourceFileSha256] = useState('');
   const [persistentCaseId, setPersistentCaseId] = useState('');
-  const trustedEvidence = useMemo(() => evidence.filter(item => !item.tampered), [evidence]);
+  const trustedEvidence = useMemo(() => getTrustedFirstlightEvidence(evidence), [evidence]);
   const quarantinedEvidenceCount = evidence.length - trustedEvidence.length;
   const timeline = useMemo(() => [...evidence].sort((a,b)=>Date.parse(a.time)-Date.parse(b.time)), [evidence]);
-  const findings = useMemo(() => {
-    // A hash mismatch quarantines a record from supporting findings until it is restored/re-collected.
-    const all = trustedEvidence.map(e => e.summary + ' ' + e.kind).join(' ').toLowerCase();
-    const out: {title:string;detail:string;severity:string;refs:string[]}[] = [];
-    if (/new browser|new device|new location/.test(all)) out.push({title:'Unfamiliar sign-in context',detail:'A sign-in is described as coming from a new browser or device. Corroborate with identity-provider logs.',severity:'Review',refs:trustedEvidence.filter(e=>/new browser|new device|new location/i.test(e.summary)).map(e=>e.id)});
-    if (/forwarding rule|mailbox rule|rule_change/.test(all)) out.push({title:'Mailbox forwarding or rule change',detail:'Unexpected forwarding can support persistence or data exposure. Verify the rule owner and destination.',severity:'High',refs:trustedEvidence.filter(e=>/forwarding rule|mailbox rule|rule_change/i.test(e.summary+' '+e.kind)).map(e=>e.id)});
-    if (/mfa|multi-factor|authentication settings/.test(all)) out.push({title:'Authentication setting changed',detail:'Check whether the change was authorized and whether recovery methods were altered.',severity:'High',refs:trustedEvidence.filter(e=>/mfa|multi-factor|authentication settings/i.test(e.summary+' '+e.kind)).map(e=>e.id)});
-    if (/suspicious attachment|process/.test(all)) out.push({title:'Potentially suspicious endpoint activity',detail:'The imported summary mentions a process or attachment. This prototype does not inspect the endpoint or file.',severity:'Review',refs:trustedEvidence.filter(e=>/suspicious attachment|process/i.test(e.summary+' '+e.kind)).map(e=>e.id)});
-    if (/lookalike|urgent|password|otp|credential/.test(all)) out.push({title:'Social-engineering indicators',detail:'Urgency, lookalike domains or credential requests warrant independent sender and destination verification.',severity:'Review',refs:trustedEvidence.filter(e=>/lookalike|urgent|password|otp|credential/i.test(e.summary)).map(e=>e.id)});
-    return out;
-  }, [trustedEvidence]);
+  const findings = useMemo(() => buildFirstlightFindings(evidence), [evidence]);
   function log(action: string, detail: string) { setAudit(prev => [...prev, {time:new Date().toISOString(),action,detail}]); }
   async function loadCase() {
     setBusy(true); setNotice('');
