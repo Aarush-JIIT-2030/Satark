@@ -369,7 +369,7 @@ async function inspectViewport(viewport, label) {
 
     if (route.path === '/firstlight') {
       await page.screenshot({ path: path.join(artifactDir, `firstlight-${label}.png`), fullPage: true });
-      const launch = page.getByRole('button', { name: /launch training case/i });
+      const launch = page.locator('.firstlight-hero .btn-primary');
       await launch.waitFor();
       await launch.click();
       await page.getByRole('heading', { name: /artifacts & integrity/i }).waitFor();
