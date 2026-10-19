@@ -1,0 +1,73 @@
+import { NextResponse } from 'next/server';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+function reply(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+
+function backendConfig() {
+  const raw = process.env.FIRSTLIGHT_API_URL?.trim();
+  const token = process.env.FIRSTLIGHT_API_TOKEN?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1', 'firstlight-api']);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && localHosts.has(url.hostname))) return null;
+    if (url.username || url.password || url.search || url.hash) return null;
+    if (url.protocol === 'https:' && (!token || token.length < 32)) return null;
+    return { baseUrl: url.origin, token };
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(request: Request) {
+  const config = backendConfig();
+  if (!config) return reply({ error: 'The shared FIRSTLIGHT API is not configured. Local deterministic findings remain available.' }, 503);
+
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > MAX_BODY_BYTES) return reply({ error: 'Investigation request is too large.' }, 413);
+
+  let raw: string;
+  let input: unknown;
+  try {
+    raw = await request.text();
+    if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) return reply({ error: 'Investigation request is too large.' }, 413);
+    input = JSON.parse(raw);
+  } catch {
+    return reply({ error: 'A valid JSON request is required.' }, 400);
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return reply({ error: 'A JSON object is required.' }, 400);
+
+  try {
+    const response = await fetch(config.baseUrl + '/api/v1/cases/investigate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(config.token ? { Authorization: 'Bearer ' + config.token } : {}),
+      },
+      body: raw,
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(12_000),
+    });
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return reply({ error: 'Investigation service returned an oversized response.' }, 502);
+    let payload: unknown;
+    try { payload = JSON.parse(text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
+    if (!response.ok) {
+      const message = payload && typeof payload === 'object' && 'detail' in payload && typeof payload.detail === 'string'
+        ? payload.detail
+        : 'The shared investigation service could not process this case.';
+      return reply({ error: message }, response.status >= 400 && response.status < 500 ? response.status : 503);
+    }
+    return reply(payload);
+  } catch {
+    return reply({ error: 'The shared FIRSTLIGHT API is unreachable. Local deterministic findings remain available.' }, 503);
+  }
+}

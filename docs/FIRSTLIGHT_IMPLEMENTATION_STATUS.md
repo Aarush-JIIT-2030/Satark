@@ -1,6 +1,6 @@
 # FIRSTLIGHT implementation status
 
-Last reviewed: 2026-10-17
+Last reviewed: 2026-10-19
 
 This status describes repository-backed behavior, not planned features or unverified live integrations.
 
@@ -9,6 +9,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Synthetic account-compromise training case with fictional indicators.
 - SHA-256 sealing and verification of normalized evidence records.
 - Interactive integrity/tamper challenge that flags changes against the stored digest.
+- The Next.js FIRSTLIGHT workspace quarantines records with a detected hash mismatch from local findings and finding references; regression tests cover tampered-only, mixed, and trusted evidence.
 - Deterministic detection and correlation rules with evidence-linked findings.
 - Timestamp-based timeline reconstruction for supplied events.
 - Explicit evidence gaps and uncertainty labels.
@@ -16,19 +17,24 @@ This status describes repository-backed behavior, not planned features or unveri
 - Session-local hash-chained audit events and JSON report export.
 - JSON/CSV event import with validation and artifact hashing.
 - Evidence triage ranking by volatility, text relevance, timestamp recency and integrity status (deterministic heuristic; not a calibrated risk score).
+- A versioned investigation result (`schema_version: 1.1`) with a six-stage, evidence-grounded execution trace: integrity, triage, detection/correlation, timeline reconstruction, verification/gaps, and response planning. Each stage reports deterministic mode, input/output counts, and only evidence IDs from the current case. The Streamlit UI now displays this trace.
+- Explicit orchestration metadata states that model-driven independent agents are not enabled; the trace is an honest deterministic multi-stage baseline, not a claim of autonomous LLM collaboration.
+- A shared FastAPI endpoint (`POST /api/v1/cases/investigate`) now wraps the canonical `firstlight_engine.py` implementation. The Next.js API route proxies to it when `FIRSTLIGHT_API_URL` is configured, and the FIRSTLIGHT findings panel can run the shared Python engine and show its integrity summary, findings, gaps and stage trace.
+- The local Docker Compose stack now includes the shared FIRSTLIGHT API service. The web UI uses a matching canonical evidence-hash format so the backend can detect a changed record without silently re-sealing it.
+- API tests cover health status, verified records, tamper detection, duplicate IDs and token enforcement; a dedicated GitHub Actions workflow runs the Python API/engine tests. CI results still need to be observed.
 
 ## Partially implemented
 
 | Capability | Current state | What is still missing |
 |---|---|---|
-| Multi-agent investigation | Named Evidence, Detection, Correlation and Verification stages run as deterministic Python functions. | Real agent orchestration, model/tool calls, shared state, per-agent traces, retries and bounded tool permissions. |
+| Multi-agent investigation | Six bounded deterministic stages now expose a versioned trace with case-specific input/output counts and evidence references; UI labels the stages accurately. | Independent model agents, schema-validated tool calls, shared run state, retry policy, per-agent evaluation, and bounded tool permissions. |
 | Suspicious activity detection | A small set of explainable rules and keyword checks; results link to evidence IDs. | Broader coverage, rule evaluation on validated live telemetry, test corpus, false-positive/negative evaluation and rule/version management. |
 | Evidence prioritization | New transparent heuristic ranks supplied records and flags integrity mismatches for quarantine/review. | Domain-validated weights, analyst-configurable policy, source-specific volatility decay, prioritization metrics and UI parity in the Next.js workflow. |
 | Timeline reconstruction | Sorts supplied timestamps and shows relationships/gaps. | Clock-skew handling, provenance/confidence per event, cross-source entity resolution and causal-relationship validation. |
 | Evidence integrity | Hashes protect against accidental/after-sealing changes relative to a stored baseline. | Trusted collector identity, signed manifests, independently anchored hashes, trusted timestamps and durable chain of custody. |
 | Case storage | A Supabase-backed evidence upload API and case-workspace components exist behind configuration/auth requirements. | End-to-end persisted FIRSTLIGHT case lifecycle, verified tenant policies, durable audit writes, retention and recovery tests. |
 | Live response adapters | Opt-in Microsoft Defender device isolation and Entra session revocation adapters exist separately. | Safe integration into FIRSTLIGHT's authenticated approval workflow, real-tenant testing, durable approval/result records and recovery drills. |
-| Frontend/backend parity | The Next.js FIRSTLIGHT UI and Python/Streamlit engine each have workflows. | A shared service contract so both surfaces execute the same investigation engine and return the same result schema. |
+| Frontend/backend parity | The Next.js UI proxies to a shared FastAPI endpoint backed by `firstlight_engine.py`; Streamlit calls that same engine module directly. Local Compose includes the API service. | Configure the shared service for each deployment, persist case/audit state, and verify end-to-end behavior in CI and on the deployed environment. |
 
 ## Not implemented / not verified
 

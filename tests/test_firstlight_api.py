@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+import os
+
+from fastapi.testclient import TestClient
+
+import firstlight_api
+from firstlight_engine import sha256_record
+
+client = TestClient(firstlight_api.app)
+
+
+def evidence(event_id: str, summary: str = "Routine application notice", kind: str = "notice") -> dict:
+    item = {
+        "id": event_id,
+        "time": "2026-10-11T09:14:00Z",
+        "source": "synthetic test",
+        "kind": kind,
+        "summary": summary,
+    }
+    record = {
+        "event_id": item["id"],
+        "timestamp": item["time"],
+        "source": item["source"],
+        "kind": item["kind"],
+        "summary": item["summary"],
+        "details": {},
+    }
+    item["digest"] = sha256_record(record)
+    return item
+
+
+def test_health_is_no_store_and_not_production_ready():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["production_ready"] is False
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_shared_api_returns_engine_trace_and_verified_evidence():
+    response = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-TEST", "title": "Synthetic test", "evidence": [
+            evidence("EV-1", "Successful login from a new browser profile", "authentication")
+        ]},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["case_id"] == "CASE-TEST"
+    assert payload["integrity_summary"] == {"total": 1, "verified": 1, "mismatched": 0}
+    assert payload["investigation"]["orchestrator"]["mode"] == "bounded_deterministic"
+    assert payload["investigation"]["agent_trace"]
+    assert payload["limitations"]
+
+
+def test_tampered_digest_is_quarantined_and_not_referenced():
+    item = evidence("EV-1", "Successful login from a new browser profile", "authentication")
+    item["summary"] = "Changed after hashing: routine notice"
+    response = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-TAMPER", "evidence": [item]},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["integrity_summary"]["mismatched"] == 1
+    assert payload["integrity"][0]["valid"] is False
+    assert all(not finding["evidence_ids"] for finding in payload["investigation"]["findings"])
+    assert payload["investigation"]["timeline"][0]["integrity"].startswith("HASH MISMATCH")
+
+
+def test_duplicate_evidence_ids_are_rejected():
+    item = evidence("EV-1")
+    response = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-DUP", "evidence": [item, item]},
+    )
+    assert response.status_code == 422
+
+
+def test_api_token_is_enforced_when_configured(monkeypatch):
+    monkeypatch.setenv("FIRSTLIGHT_API_TOKEN", "t" * 40)
+    response = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-AUTH", "evidence": []},
+    )
+    assert response.status_code == 401
+    allowed = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-AUTH", "evidence": []},
+        headers={"Authorization": "Bearer " + "t" * 40},
+    )
+    assert allowed.status_code == 200
+    monkeypatch.delenv("FIRSTLIGHT_API_TOKEN", raising=False)
+
+
+def test_short_api_token_fails_closed(monkeypatch):
+    monkeypatch.setenv("FIRSTLIGHT_API_TOKEN", "weak")
+    response = client.post(
+        "/api/v1/cases/investigate",
+        json={"case_id": "CASE-AUTH", "evidence": []},
+    )
+    assert response.status_code == 503
+    monkeypatch.delenv("FIRSTLIGHT_API_TOKEN", raising=False)
