@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const require = createRequire(import.meta.url);
@@ -288,48 +289,18 @@ async function inspectViewport(viewport, label) {
         'document review should explain its local-only processing boundary');
     }
     if (route.path === '/media-review') {
-      const mediaBytes = await page.evaluate(async () => {
-        if (!('MediaRecorder' in window) || !HTMLCanvasElement.prototype.captureStream) {
-          throw new Error('This Chromium build does not support synthetic local media fixtures.');
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = 320;
-        canvas.height = 180;
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Could not create the synthetic video canvas.');
-        const stream = canvas.captureStream(8);
-        const preferredType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
-        const recorder = new MediaRecorder(stream, { mimeType: preferredType });
-        const parts = [];
-        recorder.addEventListener('dataavailable', event => { if (event.data.size) parts.push(event.data); });
-        const stopped = new Promise((resolve, reject) => {
-          recorder.addEventListener('stop', resolve, { once: true });
-          recorder.addEventListener('error', () => reject(new Error('Synthetic video recording failed.')), { once: true });
-        });
-        recorder.start(120);
-        const start = performance.now();
-        await new Promise(resolve => {
-          const draw = () => {
-            const elapsed = performance.now() - start;
-            context.fillStyle = elapsed % 500 < 250 ? '#132b3c' : '#b9f36b';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            context.fillStyle = elapsed % 500 < 250 ? '#b9f36b' : '#132b3c';
-            context.font = '18px sans-serif';
-            context.fillText('SATARK SYNTHETIC QA', 16, 92);
-            if (elapsed >= 2200) {
-              resolve();
-            } else {
-              setTimeout(draw, 100);
-            }
-          };
-          draw();
-        });
-        recorder.stop();
-        await stopped;
-        stream.getTracks().forEach(track => track.stop());
-        const blob = new Blob(parts, { type: recorder.mimeType || 'video/webm' });
-        return Array.from(new Uint8Array(await blob.arrayBuffer()));
-      });
+      // MediaRecorder-generated WebM often lacks a finite Duration element in headless
+      // Chromium. Generate a deterministic, finalized fixture with FFmpeg instead.
+      const fixturePath = path.join(artifactDir, `synthetic-media-${label}.webm`);
+      const generated = spawnSync('ffmpeg', [
+        '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i',
+        'color=c=0x132b3c:s=320x180:r=8', '-t', '2.2',
+        '-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8',
+        '-an', '-y', fixturePath,
+      ], { encoding: 'utf8' });
+      assert.equal(generated.status, 0,
+        'FFmpeg must create a finalized synthetic WebM fixture: ' + (generated.stderr || generated.error || 'unknown error'));
+      const mediaBytes = await fs.readFile(fixturePath);
       await page.locator('#media-file').setInputFiles({
         name: 'synthetic-media-test.webm',
         mimeType: 'video/webm',
