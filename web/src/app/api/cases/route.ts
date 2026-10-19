@@ -18,7 +18,7 @@ async function readBoundedJson(request: Request): Promise<{ ok: true; body: unkn
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null) {
     const size = Number(contentLength);
-    if (!Number.isFinite(size) || size < 0) return { ok: false, status: 400 };
+    if (!Number.isSafeInteger(size) || size < 0) return { ok: false, status: 400 };
     if (size > MAX_BODY_BYTES) return { ok: false, status: 413 };
   }
   if (!request.body) return { ok: false, status: 400 };
@@ -32,7 +32,8 @@ async function readBoundedJson(request: Request): Promise<{ ok: true; body: unkn
       if (done) break;
       totalBytes += value.byteLength;
       if (totalBytes > MAX_BODY_BYTES) {
-        await reader.cancel();
+        // Cancellation is best-effort; preserve the known 413 even if the stream rejects cancellation.
+        void reader.cancel().catch(() => undefined);
         return { ok: false, status: 413 };
       }
       raw += decoder.decode(value, { stream: true });
