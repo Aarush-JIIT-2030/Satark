@@ -21,7 +21,7 @@ This is an execution ledger, not a declaration of production readiness. A checkb
 - [ ] Verify every private page and every API route is server-side authenticated; browser-only route hiding is not authorization.
 - [ ] Verify the exact deployed Supabase schema, migrations, RLS policies, grants, and membership-role constraints. Never infer these from frontend code.
 - [ ] Provision two distinct non-admin test users in distinct tenants and a viewer account; run the required integration suite without skipped tests.
-- [ ] Add password recovery/reset UI and verify email redirect configuration in the actual Supabase project.
+- [x] Add password recovery request UI, generic anti-enumeration confirmation, and password reset completion page; email redirect configuration and live provider verification remain pending.
 - [ ] Move auth persistence to a reviewed secure session design if server-rendered private pages need cookie-backed sessions; current localStorage tokens are exposed to same-origin JavaScript.
 - [ ] Complete durable case CRUD, assignment, status transition validation, optimistic concurrency, and pagination.
 - [ ] Persist evidence, findings, notes, reports, and audit events with tenant-scoped RLS and verified retention/deletion behavior.
@@ -41,10 +41,11 @@ This is an execution ledger, not a declaration of production readiness. A checkb
 3. Ensure required security checks fail clearly instead of silently skipping missing fixtures.
 
 ### Phase 1 — Authentication and tenant authorization
-1. Inspect and version the actual database schema/migrations.
-2. Audit every private page/API route and every database table for RLS and grants.
-3. Enforce admin/analyst/viewer capabilities in database policies and server-side handlers.
-4. Add password recovery, expiry/revocation tests, forged-token tests, and two-tenant integration coverage.
+1. [In progress] Password recovery request and completion screens/helpers have been added; configure and verify the allowed redirect URL in Supabase and test real email delivery.
+2. Inspect and version the actual database schema/migrations.
+3. Audit every private page/API route and every database table for RLS and grants.
+4. Enforce admin/analyst/viewer capabilities in database policies and server-side handlers.
+5. Add password recovery, expiry/revocation tests, forged-token tests, and two-tenant integration coverage.
 
 ### Phase 2 — Durable data and accountability
 1. Define canonical case/evidence/finding/report/audit schemas and migration strategy.
