@@ -94,6 +94,27 @@ export async function requestPasswordReset(email: string, redirectTo: string) {
   }
 }
 
+export async function completePasswordReset(accessToken: string, password: string) {
+  if (!accessToken || accessToken.length > 8192 || !/^[A-Za-z0-9._~-]+$/.test(accessToken)) {
+    throw new Error('The recovery link is invalid or expired. Request a new one.');
+  }
+  if (password.length < 8 || password.length > 128) {
+    throw new Error('Use a password between 8 and 128 characters.');
+  }
+  const { url, key } = config();
+  const response = await fetch(url + '/auth/v1/user', {
+    method: 'PUT',
+    headers: { apikey: key, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) {
+    throw new Error('The recovery link is invalid or expired. Request a new one.');
+  }
+}
+
 export async function signUp(email: string, password: string) {
   const data = await authRequest('signup', { email, password });
   if (data.access_token && data.refresh_token) return { session: saveSession(data), confirmationRequired: false };
