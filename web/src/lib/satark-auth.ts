@@ -74,6 +74,26 @@ export async function signIn(email: string, password: string) {
   return saveSession(await authRequest('token?grant_type=password', { email, password }));
 }
 
+export async function requestPasswordReset(email: string, redirectTo: string) {
+  const { url, key } = config();
+  const callback = new URL(redirectTo);
+  if (callback.protocol !== 'https:' && callback.hostname !== 'localhost' && callback.hostname !== '127.0.0.1') {
+    throw new Error('Password recovery requires a secure redirect URL.');
+  }
+  const response = await fetch(url + '/auth/v1/recover', {
+    method: 'POST',
+    headers: { apikey: key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, redirect_to: callback.toString() }),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) {
+    // Keep the response generic in the UI to avoid revealing whether an account exists.
+    throw new Error('Password recovery could not be requested. Check the email and try again later.');
+  }
+}
+
 export async function signUp(email: string, password: string) {
   const data = await authRequest('signup', { email, password });
   if (data.access_token && data.refresh_token) return { session: saveSession(data), confirmationRequired: false };
