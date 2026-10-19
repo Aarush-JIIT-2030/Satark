@@ -4,9 +4,38 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+
+function authConfig() {
+  const rawUrl = process.env.SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!rawUrl || !publishableKey) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'https:' || !url.hostname.endsWith('.supabase.co')) return null;
+    return { url: url.origin, publishableKey };
+  } catch { return null; }
+}
+
+function bearer(request: Request): string | null {
+  const match = /^Bearer ([A-Za-z0-9._~-]+)$/.exec(request.headers.get('authorization') || '');
+  return match?.[1] ?? null;
+}
+
+async function authenticate(token: string, config: NonNullable<ReturnType<typeof authConfig>>): Promise<boolean> {
+  try {
+    const response = await fetch(config.url + '/auth/v1/user', {
+      headers: { apikey: config.publishableKey, Authorization: 'Bearer ' + token, Accept: 'application/json' },
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) return false;
+    const user: unknown = await response.json();
+    return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id);
+  } catch { return false; }
 }
 
 function backendConfig() {
@@ -26,6 +55,12 @@ function backendConfig() {
 }
 
 export async function POST(request: Request) {
+  const auth = authConfig();
+  if (!auth) return reply({ error: 'Authentication is not configured on this deployment.' }, 503);
+  const token = bearer(request);
+  if (!token) return reply({ error: 'Sign in is required to run the shared investigation.' }, 401);
+  if (!(await authenticate(token, auth))) return reply({ error: 'Your session is invalid or expired. Sign in again.' }, 401);
+
   const config = backendConfig();
   if (!config) return reply({ error: 'The shared FIRSTLIGHT API is not configured. Local deterministic findings remain available.' }, 503);
 
