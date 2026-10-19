@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SATARK_PRODUCTION_URL: https://satark-qzym.vercel.app
+      SATARK_PRODUCTION_URL: ${{ vars.SATARK_PRODUCTION_URL }}
     steps:
       - name: Check out current production branch revision
         uses: actions/checkout@v4
@@ -31,6 +31,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "${SATARK_PRODUCTION_URL:-}" ]]; then
+            echo "::error::Set the repository Actions variable SATARK_PRODUCTION_URL to the verified SATARK production URL before enabling production smoke checks."
+            exit 1
+          fi
           expected_sha="$(git rev-parse HEAD)"
           base="${SATARK_PRODUCTION_URL%/}"
           body="$(mktemp)"
