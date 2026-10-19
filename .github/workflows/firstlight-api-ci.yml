@@ -1,0 +1,42 @@
+name: FIRSTLIGHT API CI
+
+on:
+  pull_request:
+    paths:
+      - "firstlight_engine.py"
+      - "firstlight_api.py"
+      - "firstlight-api-requirements.txt"
+      - "Dockerfile.firstlight-api"
+      - "tests/test_firstlight_api.py"
+      - "tests/test_firstlight_engine.py"
+      - ".github/workflows/firstlight-api-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firstlight_engine.py"
+      - "firstlight_api.py"
+      - "firstlight-api-requirements.txt"
+      - "Dockerfile.firstlight-api"
+      - "tests/test_firstlight_api.py"
+      - "tests/test_firstlight_engine.py"
+      - ".github/workflows/firstlight-api-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: firstlight-api-requirements.txt
+      - name: Install API dependencies and test runner
+        run: python -m pip install -r firstlight-api-requirements.txt pytest
+      - name: Run shared API and engine tests
+        run: pytest -q tests/test_firstlight_api.py tests/test_firstlight_engine.py
