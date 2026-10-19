@@ -95,7 +95,9 @@ export default function PersistentCasePanel({
         caseId = created.id;
       }
       const toSave = evidence.slice(0, 500);
+      if (evidence.length > 500) throw new Error('This case contains more than 500 evidence records. Split the import before saving so no evidence is silently omitted.');
       let savedCount = 0;
+      let duplicateEvidenceCount = 0;
       for (const item of toSave) {
         const response = await fetch('/api/evidence/records', {
           method: 'POST',
@@ -106,12 +108,35 @@ export default function PersistentCasePanel({
             metadata: { local_evidence_id: item.id, browser_record_sha256: item.digest, simulated_tamper: Boolean(item.tampered) },
           }), cache: 'no-store',
         });
-        if (response.status === 409) continue;
+        if (response.status === 409) {
+          // A conflict is not proof of an identical retry. Compare the persisted
+          // browser digest and normalized fields before treating it as idempotent.
+          const query = new URLSearchParams({
+            select: 'id,observed_at,source_label,event_kind,summary,metadata',
+            tenant_id: 'eq.' + tenant.id, case_id: 'eq.' + caseId, limit: '500',
+          });
+          const existingResponse = await authenticatedFetch('/rest/v1/satark_evidence?' + query);
+          if (!existingResponse.ok) throw new Error('Evidence already exists, but its stored version could not be checked safely.');
+          const existingRows = await existingResponse.json() as {observed_at:string;source_label:string;event_kind:string;summary:string;metadata:Record<string,unknown>}[];
+          const existing = existingRows.find(row => row.metadata?.local_evidence_id === item.id);
+          if (!existing ||
+              existing.metadata?.browser_record_sha256 !== item.digest ||
+              existing.source_label !== item.source ||
+              existing.event_kind !== item.kind ||
+              existing.summary !== item.summary ||
+              Date.parse(existing.observed_at) !== Date.parse(item.time) ||
+              Boolean(existing.metadata?.simulated_tamper) !== Boolean(item.tampered)) {
+            throw new Error('Evidence conflict detected: the stored record differs from this version. Nothing was overwritten; review the case before retrying.');
+          }
+          duplicateEvidenceCount++;
+          continue;
+        }
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'An evidence record could not be saved.');
         savedCount++;
       }
       let findingCount = 0;
+      let duplicateFindingCount = 0;
       for (const [i, finding] of findings.entries()) {
         const response = await fetch('/api/findings', {
           method: 'POST',
@@ -122,7 +147,26 @@ export default function PersistentCasePanel({
             evidence_refs: finding.refs, source: 'FIRSTLIGHT deterministic rules',
           }), cache: 'no-store',
         });
-        if (response.status === 409) continue;
+        if (response.status === 409) {
+          const query = new URLSearchParams({ tenant_id: tenant.id, case_id: caseId });
+          const existingResponse = await fetch('/api/findings?' + query, {
+            headers: { Authorization: 'Bearer ' + session.access_token }, cache: 'no-store',
+          });
+          if (!existingResponse.ok) throw new Error('Finding already exists, but its stored version could not be checked safely.');
+          const existingPayload = await existingResponse.json() as {findings?: {finding_key:string;title:string;severity:string;detail:string;evidence_refs:string[];source:string}[]};
+          const expectedKey = finding.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 160) || 'finding-' + i;
+          const existing = existingPayload.finding ? undefined : (existingPayload.findings || []).find(row => row.finding_key === expectedKey);
+          if (!existing ||
+              existing.title !== finding.title ||
+              existing.severity !== finding.severity ||
+              existing.detail !== finding.detail ||
+              existing.source !== 'FIRSTLIGHT deterministic rules' ||
+              JSON.stringify(existing.evidence_refs) !== JSON.stringify(finding.refs)) {
+            throw new Error('Finding conflict detected: the stored finding differs from this version. Nothing was overwritten; review the case before retrying.');
+          }
+          duplicateFindingCount++;
+          continue;
+        }
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'A finding could not be saved.');
         findingCount++;
@@ -149,11 +193,11 @@ export default function PersistentCasePanel({
       const reportData = await reportResponse.json().catch(() => ({}));
       if (!reportResponse.ok) throw new Error(typeof reportData.error === 'string' ? reportData.error : 'Report snapshot could not be saved.');
       await refresh();
-      onSaved(caseId, 'Saved case ' + caseId.slice(0, 8) + ': ' + savedCount + ' evidence records, ' + findingCount + ' findings, and a reproducible report snapshot.');
+      onSaved(caseId, 'Saved case ' + caseId.slice(0, 8) + ': ' + savedCount + ' new evidence records, ' + duplicateEvidenceCount + ' verified identical evidence retries, ' + findingCount + ' new findings, ' + duplicateFindingCount + ' verified identical finding retries, and a reproducible report snapshot.');
       setMessage('Saved case, evidence, findings, report snapshot, visible session audit, and simulated response decisions. Database-triggered audit events are separate from this session log.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not persist this incident.');
-      if (caseId) onSaved(caseId, 'Case exists, but one or more persistence steps failed. Review the error and retry; duplicate evidence records are safely skipped.');
+      if (caseId) onSaved(caseId, 'Case exists, but one or more persistence steps failed. Review the error and retry; duplicate records are skipped only after exact stored-content verification.');
     } finally { setBusy(false); }
   }
 
