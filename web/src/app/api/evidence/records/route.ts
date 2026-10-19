@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { readBoundedJson } from '@/lib/read-bounded-json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,11 +27,10 @@ export async function POST(request: Request) {
     userId = value.id;
   } catch { return reply({ error: 'Authentication service is temporarily unavailable.' }, 503); }
   finally { clearTimeout(timer); }
-  const length = Number(request.headers.get('content-length') || 0);
-  if (length > MAX_BODY) return reply({ error: 'Evidence record is too large.' }, 413);
-  let input: unknown;
-  try { input = await request.json(); } catch { return reply({ error: 'A valid JSON object is required.' }, 400); }
-  if (!input || typeof input !== 'object' || Array.isArray(input) || Buffer.byteLength(JSON.stringify(input), 'utf8') > MAX_BODY) return reply({ error: 'A bounded JSON object is required.' }, 400);
+  const parsed = await readBoundedJson(request, MAX_BODY);
+  if (!parsed.ok) return reply({ error: parsed.error }, parsed.status);
+  const input = parsed.value;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return reply({ error: 'A bounded JSON object is required.' }, 400);
   const value = input as Record<string, unknown>;
   const tenantId = value.tenant_id, caseId = value.case_id;
   const source = typeof value.source_label === 'string' ? value.source_label.trim() : 'Imported event';
