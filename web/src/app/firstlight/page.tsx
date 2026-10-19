@@ -26,6 +26,20 @@ async function digest(text: string) {
   return toHex(await crypto.subtle.digest('SHA-256', bytes));
 }
 
+// Keep the browser's evidence envelope byte-for-byte compatible with Python's
+// sorted-key canonical JSON in firstlight_engine.sha256_record.
+async function digestEvidence(item: { id: string; time: string; source: string; kind: string; summary: string }) {
+  const canonicalRecord = {
+    details: {},
+    event_id: item.id,
+    kind: item.kind,
+    source: item.source,
+    summary: item.summary,
+    timestamp: item.time,
+  };
+  return digest(JSON.stringify(canonicalRecord));
+}
+
 async function digestBytes(bytes: ArrayBuffer) {
   return toHex(await crypto.subtle.digest('SHA-256', bytes));
 }
@@ -50,7 +64,7 @@ export default function FirstlightPage() {
     setBusy(true); setNotice('');
     try {
       const sealed: Evidence[] = [];
-      for (const event of starter) sealed.push({...event, digest: await digest(JSON.stringify(event))});
+      for (const event of starter) sealed.push({...event, digest: await digestEvidence(event)});
       setEvidence(sealed); setAudit([]); setActions([]); setCaseOpen(true); setImportName(''); setSourceFileSha256('');
       setAudit([{time:new Date().toISOString(),action:'CASE_CREATED',detail:'Synthetic account-compromise training case loaded.'},{time:new Date().toISOString(),action:'EVIDENCE_SEALED',detail:sealed.length+' synthetic records hashed with SHA-256 in this browser session.'}]);
       setSelected('evidence');
@@ -85,7 +99,7 @@ export default function FirstlightPage() {
         const parsedTime = parseIsoTimestamp(rawTime);
         if (!parsedTime) throw new Error('Invalid timestamp in event ' + (i + 1) + '. Use ISO 8601 date/time with an explicit timezone, e.g. 2026-10-11T10:00:00Z.');
         const item = {id:String(row.id || row.evidence_id || 'IMP-'+String(i+1).padStart(3,'0')).slice(0,100),time:parsedTime,source:String(row.source || 'Imported source').slice(0,160),kind:String(row.kind || 'observation').slice(0,100),summary:String(row.summary || row.message || row.description || 'No summary provided').slice(0,4096)};
-        next.push({...item,digest:await digest(JSON.stringify(item))});
+        next.push({...item,digest:await digestEvidence(item)});
       }
       const ids = new Set<string>();
       for (const item of next) {
@@ -99,8 +113,7 @@ export default function FirstlightPage() {
   async function verifyIntegrity(records: Evidence[] = evidence) {
     const verified: Evidence[] = [];
     for (const record of records) {
-      const canonical = { id: record.id, time: record.time, source: record.source, kind: record.kind, summary: record.summary };
-      const currentDigest = await digest(JSON.stringify(canonical));
+      const currentDigest = await digestEvidence(record);
       verified.push({ ...record, tampered: currentDigest !== record.digest });
     }
     setEvidence(verified);
