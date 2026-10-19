@@ -51,3 +51,24 @@ test('evidence, findings, and report APIs enforce actual streamed request size',
     assert.ok(!source.includes('await request.json()'), path + ' must not parse an unbounded body first');
   }
 });
+
+test('persistent FIRSTLIGHT retries verify duplicate content instead of silently skipping conflicts', async () => {
+  const source = await readFile(new URL('../src/app/firstlight/persistent-case-panel.tsx', import.meta.url), 'utf8');
+  assert.ok(source.includes('Evidence conflict detected: the stored record differs from this version.'), 'mismatched duplicate evidence must fail closed');
+  assert.ok(source.includes('Finding conflict detected: the stored finding differs from this version.'), 'mismatched duplicate findings must fail closed');
+  assert.ok(source.includes('browser_record_sha256 !== item.digest'), 'duplicate evidence must compare the original browser digest');
+  assert.ok(source.includes('verified identical evidence retries'), 'the save result must distinguish newly saved records from verified retries');
+  assert.ok(source.includes('evidence.length > 500'), 'oversized evidence sets must not be silently truncated');
+  assert.ok(source.includes('duplicate records are skipped only after exact stored-content verification.'), 'partial-save messaging must explain the safe retry behavior');
+});
+
+test('independent FIRSTLIGHT model agent implementation is opt-in, bounded, and read-only', async () => {
+  const source = await readFile(new URL('../../firstlight_agents.py', import.meta.url), 'utf8');
+  assert.ok(source.includes('FIRSTLIGHT_MODEL_AGENTS_ENABLED'), 'model agents must require explicit enablement');
+  assert.ok(source.includes('MAX_EVIDENCE = 80'), 'each agent prompt must receive a bounded evidence projection');
+  assert.ok(source.includes('ALLOWED_TOOL_NAMES: frozenset[str] = frozenset()'), 'agents must have no executable tool permissions');
+  assert.ok(source.includes('AgentResult.model_validate(payload)'), 'agent output must be schema validated');
+  assert.ok(source.includes('all(ref in known_ids for ref in finding.evidence_ids)'), 'invented evidence references must be discarded');
+  assert.ok(source.includes('AGENT_TIMEOUT_SECONDS = 22'), 'provider calls must have a bounded timeout');
+  assert.ok(source.includes('deterministic results remain authoritative'), 'model failures must not suppress deterministic findings');
+});
