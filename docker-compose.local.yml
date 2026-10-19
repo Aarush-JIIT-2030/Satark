@@ -8,10 +8,14 @@ services:
       SATARK_ANALYSIS_MODE: local
       SATARK_OLLAMA_BASE_URL: http://ollama:11434
       SATARK_OLLAMA_MODEL: ${SATARK_OLLAMA_MODEL:-qwen2.5:3b}
+      FIRSTLIGHT_API_URL: http://firstlight-api:8788
+      FIRSTLIGHT_API_TOKEN: ${FIRSTLIGHT_API_TOKEN:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
       ollama:
+        condition: service_healthy
+      firstlight-api:
         condition: service_healthy
     restart: unless-stopped
     security_opt:
@@ -20,6 +24,27 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=64m,mode=1777
+
+  firstlight-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.firstlight-api
+    environment:
+      FIRSTLIGHT_API_TOKEN: ${FIRSTLIGHT_API_TOKEN:-}
+    expose:
+      - "8788"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=32m,mode=1777
 
   streamlit:
     build:
