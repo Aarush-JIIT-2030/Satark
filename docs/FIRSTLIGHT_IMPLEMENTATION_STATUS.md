@@ -23,6 +23,14 @@ This status describes repository-backed behavior, not planned features or unveri
 - The local Docker Compose stack now includes the shared FIRSTLIGHT API service. The web UI uses a matching canonical evidence-hash format so the backend can detect a changed record without silently re-sealing it.
 - API tests cover health status, verified records, tamper detection, duplicate IDs and token enforcement; a dedicated GitHub Actions workflow runs the Python API/engine tests. CI results still need to be observed.
 
+## Latest hardening update (2026-10-20)
+
+- Added a shared streaming JSON parser at `web/src/lib/read-bounded-json.ts`. It checks declared lengths as an early rejection, counts actual streamed bytes, cancels oversized streams, rejects invalid UTF-8/JSON, and only parses after the limit is satisfied.
+- Applied it to evidence-record, finding, and report write APIs, which previously relied on `Content-Length` plus `request.json()`; chunked requests now have an actual byte cap in these routes too.
+- Added a source-contract regression test covering the shared parser and all three route integrations.
+- These changes are committed to `main`; the latest source-contract tests and full CI/build results have **not** yet been observed. A source-contract test is not a substitute for runtime tests.
+- Latest Vercel status observed for the write-route changes was still `pending` on their individual commits; the newest test commit had no reported combined status yet. Production deployment SHA and browser behavior remain unverified.
+
 ## Partially implemented
 
 | Capability | Current state | What is still missing |
