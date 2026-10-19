@@ -422,6 +422,21 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
         })
     timeline.sort(key=lambda event: _timeline_sort_key(event["timestamp"]))
 
+    # Keep limitations tied to the supplied case, not to the demo scenario.
+    valid_kinds = {str(record.get("kind", "")).lower() for _, record in records}
+    gaps = ["Only supplied artifacts were reviewed; no live endpoint or identity collection was performed."]
+    if not ({"memory", "process_snapshot"} & valid_kinds):
+        gaps.append("No memory image or live process snapshot is included in the supplied evidence.")
+    has_archive = any(
+        str(record.get("kind", "")).lower() in {"file", "filesystem"}
+        and any(term in str(record.get("summary", "")).lower() for term in ("archive", "staging", "staged"))
+        for _, record in records
+    )
+    if has_archive:
+        gaps.append("Archive contents and any successful transfer are not established by these records.")
+    if any(str(record.get("kind", "")).lower() in {"connection", "network"} for _, record in records):
+        gaps.append("Network destination reputation was not independently verified by this workflow.")
+
     return {
         "case_id": case_id,
         "orchestrator": {"status": "completed", "strategy": "Preserve → detect → correlate → verify → propose response"},
@@ -434,11 +449,7 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
         "findings": findings,
         "evidence_priorities": prioritize_evidence(evidence),
         "timeline": timeline,
-        "gaps": [
-            "No memory image or live process snapshot is included in this synthetic case.",
-            "The archive contents and any successful exfiltration are not established.",
-            "Network destination reputation is simulated and has not been queried externally.",
-        ],
+        "gaps": gaps,
         "response_proposals": [
             {"action_id": "ACT-001", "title": f"Preserve evidence for case {case_id}", "impact": "Would mark evidence-preservation as approved in the simulator only; no files are changed.", "risk": "low", "status": "pending"},
             {"action_id": "ACT-002", "title": "Review and contain affected assets", "impact": "Analyst must identify and confirm an exact target before any real response; this prototype only records a simulated decision.", "risk": "high", "status": "pending"},
