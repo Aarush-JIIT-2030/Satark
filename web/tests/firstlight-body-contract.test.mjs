@@ -70,5 +70,5 @@ test('independent FIRSTLIGHT model agent implementation is opt-in, bounded, and 
   assert.ok(source.includes('AgentResult.model_validate(payload)'), 'agent output must be schema validated');
   assert.ok(source.includes('all(ref in known_ids for ref in finding.evidence_ids)'), 'invented evidence references must be discarded');
   assert.ok(source.includes('AGENT_TIMEOUT_SECONDS = 22'), 'provider calls must have a bounded timeout');
-  assert.ok(source.includes('deterministic results remain authoritative'), 'model failures must not suppress deterministic findings');
+  assert.ok(source.includes('deterministic analysis remains authoritative'), 'model failures must not suppress deterministic findings');
 });
