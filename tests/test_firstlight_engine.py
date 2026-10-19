@@ -216,5 +216,42 @@ class FirstlightEngineTests(unittest.TestCase):
         self.assertTrue(verify_audit_chain(chain))
         self.assertFalse(verify_audit_chain(list(reversed(chain))))
 
+    def test_findings_are_derived_from_custom_evidence_ids(self):
+        events = [
+            {"event_id": "CASE-X-1", "timestamp": "2026-10-10T09:00:00Z", "source": "identity", "kind": "authentication", "summary": "Successful login from unfamiliar source", "details": {"result": "success", "novel_source": True, "account": "demo@example.test"}},
+            {"event_id": "CASE-X-2", "timestamp": "2026-10-10T09:01:00Z", "source": "endpoint", "kind": "process", "summary": "Script launched", "details": {"process": "powershell.exe", "parent": "outlook.exe", "host": "HOST-X"}},
+            {"event_id": "CASE-X-3", "timestamp": "2026-10-10T09:02:00Z", "source": "network", "kind": "connection", "summary": "Suspicious destination contacted", "details": {"destination": "example.invalid", "host": "HOST-X"}},
+            {"event_id": "CASE-X-4", "timestamp": "2026-10-10T09:03:00Z", "source": "filesystem", "kind": "file", "summary": "Archive staged in temp", "details": {"path": "/tmp/archive.zip"}},
+            {"event_id": "CASE-X-5", "timestamp": "2026-10-10T09:04:00Z", "source": "identity", "kind": "session", "summary": "New session issued", "details": {"account": "demo@example.test"}},
+        ]
+        case = {"case_id": "CASE-X", "title": "Custom synthetic case"}
+        evidence = [seal_evidence(event) for event in events]
+        result = investigate_case(case, evidence)
+        titles = {item["title"] for item in result["findings"]}
+        self.assertIn("Unfamiliar successful login", titles)
+        self.assertIn("Unusual process ancestry", titles)
+        self.assertIn("Potentially suspicious network activity", titles)
+        self.assertIn("Possible data staging", titles)
+        self.assertIn("Follow-on identity session", titles)
+        known_ids = {item["evidence_id"] for item in evidence}
+        for item in result["findings"]:
+            self.assertTrue(set(item["evidence_ids"]).issubset(known_ids))
+        self.assertEqual(result["case_id"], "CASE-X")
+        self.assertNotIn("WS-DEMO-04", str(result["response_proposals"]))
+
+    def test_no_matching_rule_is_not_presented_as_a_safety_clearance(self):
+        event = {
+            "event_id": "CUSTOM-1",
+            "timestamp": "2026-10-10T09:00:00Z",
+            "source": "application",
+            "kind": "notice",
+            "summary": "Routine synthetic application event",
+            "details": {"status": "ok"},
+        }
+        result = investigate_case({"case_id": "CUSTOM-CASE"}, [seal_evidence(event)])
+        self.assertEqual(result["findings"][0]["state"], "unverified")
+        self.assertFalse(result["findings"][0]["evidence_available"])
+        self.assertIn("not a safety clearance", result["findings"][0]["explanation"])
+
 if __name__ == "__main__":
     unittest.main()
