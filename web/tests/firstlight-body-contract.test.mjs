@@ -32,3 +32,22 @@ test('saved FIRSTLIGHT reports include the visible session audit and simulated d
   assert.ok(source.includes('Database-triggered audit events are separate from this session log'),
     'session events must not be misrepresented as server audit events');
 });
+
+test('evidence, findings, and report APIs enforce actual streamed request size', async () => {
+  const helper = await readFile(new URL('../src/lib/read-bounded-json.ts', import.meta.url), 'utf8');
+  assert.ok(helper.includes('request.body.getReader()'), 'shared parser must consume the stream');
+  assert.ok(helper.includes('totalBytes += value.byteLength'), 'shared parser must count actual bytes');
+  assert.ok(helper.includes('if (totalBytes > maxBytes)'), 'shared parser must reject chunked oversized requests');
+  assert.ok(helper.includes("void reader.cancel().catch(() => undefined)"), 'cancel failures must not hide the 413 result');
+  assert.ok(helper.includes("new TextDecoder('utf-8', { fatal: true })"), 'invalid UTF-8 must fail closed');
+  for (const [path, limit] of [
+    ['../src/app/api/evidence/records/route.ts', 'MAX_BODY'],
+    ['../src/app/api/findings/route.ts', '24 * 1024'],
+    ['../src/app/api/reports/route.ts', '1100 * 1024'],
+  ]) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.ok(source.includes('readBoundedJson(request,' ) || source.includes('readBoundedJson(request, '), path + ' must use the shared bounded parser');
+    assert.ok(source.includes(limit), path + ' must retain an explicit route-specific limit');
+    assert.ok(!source.includes('await request.json()'), path + ' must not parse an unbounded body first');
+  }
+});
