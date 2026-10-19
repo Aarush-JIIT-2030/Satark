@@ -7,7 +7,7 @@ results remain the baseline and model output is advisory only.
 """
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 import json
 import os
 import re
@@ -136,19 +136,35 @@ def run_independent_agents(evidence: list[dict[str, Any]]) -> dict[str, Any]:
         return {"enabled": True, "mode": "agent_error", "agents": [], "limitations": ["Configured model name is invalid; deterministic results must be used."]}
     known_ids = {str(item.get("id")) for item in evidence if isinstance(item, dict) and item.get("id") is not None}
     results: list[AgentResult] = []
-    # Each call gets its own prompt and bounded evidence projection. No tools are registered.
-    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="firstlight-agent") as pool:
-        futures = {pool.submit(_run_one, agent_id, model, evidence, known_ids): agent_id for agent_id in sorted(ALLOWED_AGENT_IDS)}
-        for future in as_completed(futures, timeout=AGENT_TIMEOUT_SECONDS + 3):
-            agent_id = futures[future]
-            try:
-                results.append(future.result(timeout=0))
-            except Exception:
-                results.append(AgentResult(agent_id=agent_id, status="timeout", summary="Agent failed or exceeded its deadline.", findings=[], limitations=["No result was trusted; deterministic analysis remains available."]))
-        for future, agent_id in futures.items():
-            if not future.done() and not any(item.agent_id == agent_id for item in results):
-                future.cancel()
-                results.append(AgentResult(agent_id=agent_id, status="timeout", summary="Agent exceeded its deadline.", findings=[], limitations=["No result was trusted; deterministic analysis remains available."]))
+    # Do not use the executor as a context manager: its implicit shutdown(wait=True)
+    # would hold the API request open when a provider ignores its timeout.
+    pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="firstlight-agent")
+    futures = {
+        pool.submit(_run_one, agent_id, model, evidence, known_ids): agent_id
+        for agent_id in sorted(ALLOWED_AGENT_IDS)
+    }
+    done, pending = wait(futures, timeout=AGENT_TIMEOUT_SECONDS + 3)
+    for future in done:
+        agent_id = futures[future]
+        try:
+            results.append(future.result())
+        except Exception as exc:
+            status = "timeout" if isinstance(exc, TimeoutError) else "unavailable"
+            results.append(AgentResult(
+                agent_id=agent_id, status=status,
+                summary="Agent failed; deterministic analysis remains available.",
+                findings=[], limitations=["No result was trusted; deterministic analysis remains available."],
+            ))
+    for future in pending:
+        agent_id = futures[future]
+        future.cancel()  # best-effort; a running network call may finish in its own worker
+        results.append(AgentResult(
+            agent_id=agent_id, status="timeout", summary="Agent exceeded its deadline.",
+            findings=[], limitations=["No result was trusted; deterministic analysis remains available."],
+        ))
+    # The API response deadline must not wait for a misbehaving provider. Running
+    # worker threads have their own bounded HTTP timeout and cannot execute tools.
+    pool.shutdown(wait=False, cancel_futures=True)
     results.sort(key=lambda item: item.agent_id)
     return {
         "enabled": True,
