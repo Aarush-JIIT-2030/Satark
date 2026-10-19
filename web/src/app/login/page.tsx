@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import SiteHeader from '../site-header';
-import { createTenant, getSession, listMyTenants, setActiveTenant, signIn, signOut, signUp, type SatarkSession, type SatarkTenant } from '../../lib/satark-auth';
+import { createTenant, getSession, listMyTenants, requestPasswordReset, setActiveTenant, signIn, signOut, signUp, type SatarkSession, type SatarkTenant } from '../../lib/satark-auth';
 
 export default function LoginPage() {
   const [session, setSession] = useState<SatarkSession | null>(null);
   const [tenants, setTenants] = useState<SatarkTenant[]>([]);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [recovering, setRecovering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
@@ -46,6 +47,16 @@ export default function LoginPage() {
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Authentication failed.'); }
     finally { setBusy(false); }
+  }
+
+  async function submitRecovery(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError(''); setNotice('');
+    try {
+      await requestPasswordReset(email.trim(), new URL('/reset-password', window.location.origin).toString());
+      setNotice('If an account exists for that email, a recovery link will be sent. Check your inbox.');
+    } catch {
+      setNotice('If an account exists for that email, a recovery link will be sent. If it does not arrive, check the address or try again later.');
+    } finally { setBusy(false); }
   }
 
   async function submitWorkspace(event: FormEvent) {
@@ -89,14 +100,26 @@ export default function LoginPage() {
               <div className="card-head"><span>Identity</span><span className="pill">{mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}</span></div>
               <h2 id="auth-title">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>
               <p className="muted">Use your workspace account. Email confirmation may be required depending on the Supabase Auth configuration.</p>
-              <form onSubmit={submitAuth}>
-                <label className="field-label" htmlFor="email">Email address</label>
-                <input id="email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} />
-                <label className="field-label" htmlFor="password">Password</label>
-                <input id="password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} />
-                <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in securely' : 'Create account'}</button>
-              </form>
-              <p className="muted">{mode === 'signin' ? 'New to SATARK?' : 'Already have an account?'} <button type="button" className="text-button" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setNotice(''); }}>{mode === 'signin' ? 'Create an account' : 'Sign in'}</button></p>
+              {recovering ? <>
+                <h2 id="auth-title">Recover your account</h2>
+                <p className="muted">Enter your account email. For privacy, we show the same confirmation whether or not an account exists.</p>
+                <form onSubmit={submitRecovery}>
+                  <label className="field-label" htmlFor="email">Email address</label>
+                  <input id="email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : 'Send recovery link'}</button>
+                </form>
+                <p className="muted"><button type="button" className="text-button" onClick={() => { setRecovering(false); setError(''); setNotice(''); }}>Back to sign in</button></p>
+              </> : <>
+                <form onSubmit={submitAuth}>
+                  <label className="field-label" htmlFor="email">Email address</label>
+                  <input id="email" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} />
+                  <label className="field-label" htmlFor="password">Password</label>
+                  <input id="password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in securely' : 'Create account'}</button>
+                </form>
+                {mode === 'signin' && <p className="muted"><button type="button" className="text-button" onClick={() => { setRecovering(true); setError(''); setNotice(''); }}>Forgot password?</button></p>}
+                <p className="muted">{mode === 'signin' ? 'New to SATARK?' : 'Already have an account?'} <button type="button" className="text-button" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setNotice(''); }}>{mode === 'signin' ? 'Create an account' : 'Sign in'}</button></p>
+              </>}
             </> : <>
               <div className="card-head"><span>Authenticated</span><span className="pill">SESSION ACTIVE</span></div>
               <h2 id="auth-title">Your workspaces</h2>
