@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from firstlight_engine import investigate_case, sha256_record
 
@@ -64,9 +64,12 @@ def _authorize(authorization: str | None) -> None:
 @app.middleware("http")
 async def bounded_request(request: Request, call_next):
     length = request.headers.get("content-length")
-    if length:
+    if length is not None:
         try:
-            if int(length) > MAX_BODY_BYTES:
+            declared = int(length)
+            if declared < 0:
+                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
+            if declared > MAX_BODY_BYTES:
                 return JSONResponse(status_code=413, content={"detail": "Request body is too large"})
         except ValueError:
             return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
@@ -82,13 +85,31 @@ async def health():
 
 @app.post("/api/v1/cases/investigate")
 async def run_investigation(
-    payload: InvestigationRequest,
     request: Request,
     authorization: str | None = Header(default=None),
 ):
     _authorize(authorization)
-    if len(await request.body()) > MAX_BODY_BYTES:
-        raise HTTPException(status_code=413, detail="Request body is too large")
+
+    # Read the actual stream incrementally. Content-Length is only an early
+    # rejection hint; chunked requests must be subject to the same hard limit.
+    chunks: list[bytes] = []
+    total_bytes = 0
+    try:
+        async for chunk in request.stream():
+            total_bytes += len(chunk)
+            if total_bytes > MAX_BODY_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Request body is too large"})
+            chunks.append(chunk)
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Could not read request body"})
+
+    try:
+        payload = InvestigationRequest.model_validate_json(b"".join(chunks))
+    except ValidationError as exc:
+        return JSONResponse(status_code=422, content={"detail": exc.errors(include_input=False)})
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"detail": "Invalid JSON request body"})
+
     ids = [item.id for item in payload.evidence]
     if len(ids) != len(set(ids)):
         raise HTTPException(status_code=422, detail="Evidence IDs must be unique within a case")
