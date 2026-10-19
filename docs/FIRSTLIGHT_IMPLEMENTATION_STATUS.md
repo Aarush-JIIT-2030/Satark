@@ -9,6 +9,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Synthetic account-compromise training case with fictional indicators.
 - SHA-256 sealing and verification of normalized evidence records.
 - Interactive integrity/tamper challenge that flags changes against the stored digest.
+- The Next.js FIRSTLIGHT workspace quarantines records with a detected hash mismatch from local findings and finding references; regression tests cover tampered-only, mixed, and trusted evidence.
 - Deterministic detection and correlation rules with evidence-linked findings.
 - Timestamp-based timeline reconstruction for supplied events.
 - Explicit evidence gaps and uncertainty labels.
