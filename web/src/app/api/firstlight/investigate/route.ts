@@ -64,17 +64,40 @@ export async function POST(request: Request) {
   const config = backendConfig();
   if (!config) return reply({ error: 'The shared FIRSTLIGHT API is not configured. Local deterministic findings remain available.' }, 503);
 
-  const declared = Number(request.headers.get('content-length') || 0);
-  if (declared > MAX_BODY_BYTES) return reply({ error: 'Investigation request is too large.' }, 413);
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    const size = Number(declared);
+    if (!Number.isSafeInteger(size) || size < 0) return reply({ error: 'A valid JSON request is required.' }, 400);
+    if (size > MAX_BODY_BYTES) return reply({ error: 'Investigation request is too large.' }, 413);
+  }
 
-  let raw: string;
+  // Count bytes while streaming so chunked requests cannot force an unbounded
+  // allocation before the limit is enforced.
+  let raw = '';
   let input: unknown;
+  const reader = request.body?.getReader();
+  if (!reader) return reply({ error: 'A valid JSON request is required.' }, 400);
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
   try {
-    raw = await request.text();
-    if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) return reply({ error: 'Investigation request is too large.' }, 413);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_BODY_BYTES) {
+        // Cancellation is best-effort; it must not turn a known oversize body
+        // into a misleading 400 if the underlying stream rejects cancellation.
+        void reader.cancel().catch(() => undefined);
+        return reply({ error: 'Investigation request is too large.' }, 413);
+      }
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
     input = JSON.parse(raw);
   } catch {
     return reply({ error: 'A valid JSON request is required.' }, 400);
+  } finally {
+    reader.releaseLock();
   }
   if (!input || typeof input !== 'object' || Array.isArray(input)) return reply({ error: 'A JSON object is required.' }, 400);
 
