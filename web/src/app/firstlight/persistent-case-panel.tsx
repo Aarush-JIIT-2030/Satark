@@ -179,7 +179,12 @@ export default function PersistentCasePanel({
       const mapped = rows.map((row, i) => ({
         id: typeof row.metadata?.local_evidence_id === 'string' ? row.metadata.local_evidence_id : row.id,
         time: row.observed_at, source: row.source_label, kind: row.event_kind, summary: row.summary,
-        digest: row.record_sha256, tampered: Boolean(row.metadata?.simulated_tamper),
+        // record_sha256 seals the server-side database envelope, not the browser
+        // canonical event used by FIRSTLIGHT's integrity verifier. Keep the
+        // original browser digest distinct; never substitute a different hash
+        // and accidentally make a saved record appear trusted.
+        digest: typeof row.metadata?.browser_record_sha256 === 'string' ? row.metadata.browser_record_sha256 : '',
+        tampered: Boolean(row.metadata?.simulated_tamper),
       }));
       const auditQuery = new URLSearchParams({ select:'action,details,created_at',tenant_id:'eq.'+tenant.id,case_id:'eq.'+item.id,order:'id.asc',limit:'500' });
       const auditResponse = await authenticatedFetch('/rest/v1/satark_audit_events?' + auditQuery);
