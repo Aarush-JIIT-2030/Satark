@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SATARK_PRODUCTION_URL: https://satark-jyc-website.vercel.app
+      SATARK_PRODUCTION_URL: https://satark-qzym.vercel.app
     steps:
       - name: Check out current production branch revision
         uses: actions/checkout@v4
