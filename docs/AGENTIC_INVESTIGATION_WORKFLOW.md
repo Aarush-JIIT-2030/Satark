@@ -3,13 +3,27 @@
 **Status:** design proposal for incremental implementation  
 **Scope:** adapt useful agent-engineering patterns to SATARK's security-investigation workflow; do not transplant a tutorial framework wholesale.
 
-## Why this belongs in SATARK
+## What SATARK already has
+
+Inspection of the current `main` code shows that the project already implements several of the patterns people often add an agent framework to obtain:
+
+- `firstlight_engine.py` provides a deterministic investigation workflow (`investigate_case`) with evidence integrity checks, prioritized evidence, a chronological timeline, evidence-linked findings, explicit gaps, and response proposals.
+- `append_audit` / `verify_audit_chain` provide a hash-chained audit trail for the current in-memory workflow.
+- `apply_simulated_response` requires an explicit approve/reject decision and clearly marks the result as simulated; it does not perform a real endpoint/account action.
+- `review_engine.py` separates local deterministic observations from AI interpretation and avoids describing heuristic evidence as proof.
+- Existing unit tests cover evidence tampering, finding references, malformed inputs, audit-chain integrity, and simulated responses.
+
+**Important distinction:** the named “Evidence Agent”, “Detection Agent”, “Correlation Agent”, and “Verification Agent” currently describe deterministic stages in the workflow. They are not independent LLM agents. That is a sensible baseline for a security investigation product; do not replace it with an autonomous multi-agent framework without a measured reason.
+
+The next useful work is therefore **better contracts, tracing, evaluation, and UI visibility**, not adding more agents for appearance.
+
+## Why the reference is relevant
 
 SATARK is not a general-purpose chatbot. Its useful job is to help a reviewer move from suspicious artifacts and incident events to an evidence-backed, reviewable decision. The agent should therefore be **bounded, traceable, and subordinate to the evidence**.
 
 The reference repository, [GenAI_Agents by Nir Diamant](https://github.com/NirDiamant/GenAI_Agents), is a teaching collection covering agent control flow, tools, memory, orchestration, and evaluation. This document adapts those general engineering ideas to SATARK. It does **not** copy notebooks, source code, prompts, images, or other repository assets. No framework or dependency is required by this design document.
 
-## Proposed investigation flow
+## Recommended workflow
 
 ```text
 Incident / artifact input
@@ -18,16 +32,16 @@ Incident / artifact input
 1. Validate + normalize input
         |
         v
-2. Build evidence register (stable IDs, hashes where supported, timestamps, source)
+2. Preserve evidence identity, hash, timestamp, and source
         |
         v
-3. Run deterministic checks and existing SATARK analysis
+3. Run existing deterministic checks and investigation engine
         |
         v
-4. Optional model-assisted interpretation of the bounded evidence
+4. Optional model-assisted explanation of bounded evidence
         |
         v
-5. Correlate findings + identify missing evidence / contradictions
+5. Validate output; verify evidence IDs; surface gaps/contradictions
         |
         v
 6. Human review: approve, reject, or request more evidence
@@ -40,11 +54,11 @@ The model may explain evidence, but it must not invent evidence, silently change
 
 ## Design rules
 
-### 1. Use a small, explicit state machine
+### 1. Keep orchestration explicit and small
 
-Prefer a single orchestrated workflow over a swarm of agents for the first implementation. Each step should have a named input and output and a clear failure state.
+Continue using a deterministic, named workflow as the control plane. Each stage should have a defined input/output and clear failure state. A failed model call should lead to deterministic-only results or manual review, not an unhandled crash or fabricated conclusion.
 
-Suggested states:
+Suggested lifecycle for future extension:
 
 - `RECEIVED`
 - `VALIDATED`
@@ -54,7 +68,7 @@ Suggested states:
 - `APPROVED` or `REJECTED`
 - `COMPLETED` or `NEEDS_MANUAL_REVIEW`
 
-Transitions must be explicit. A failed model call should lead to deterministic-only results or manual review, not an unhandled crash or a fabricated conclusion.
+Only add explicit persisted lifecycle states if the UI or durable case storage needs them; do not duplicate state that is already correctly managed in the current session.
 
 ### 2. Keep tools narrow and allow-listed
 
@@ -84,52 +98,52 @@ A model-generated claim without a valid evidence reference should be marked as u
 
 The model can recommend a next step, but the workflow must not execute a real account, identity, endpoint, or tenant response action without explicit human approval tied to the exact target and action. Approval should expire if the target or action changes. Rejection must be a valid terminal decision, not an error.
 
-The current synthetic FIRSTLIGHT scenario should remain safe to demonstrate without live credentials. Any future real-response adapter needs separate opt-in configuration, target-bound authorization, audit logging, and integration tests before it is described as connected.
+Keep the current synthetic FIRSTLIGHT scenario safe to demonstrate without live credentials. Any future real-response adapter needs separate opt-in configuration, target-bound authorization, audit logging, and integration tests before it is described as connected.
 
 ### 5. Use case-scoped memory, not open-ended memory
 
-For the initial version, keep workflow state and evidence inside the current investigation/session. If persistent case memory is added later, store only explicitly selected, necessary facts with provenance and retention rules. Never silently mix evidence from two different incidents or use a previous model answer as if it were verified evidence.
+Keep workflow state and evidence inside the current investigation/session for now. If persistent case memory is added later, store only explicitly selected, necessary facts with provenance and retention rules. Never silently mix evidence from two different incidents or use a previous model answer as if it were verified evidence.
 
 ### 6. Trace each run and decision
 
-Record a structured trace for each stage:
+The existing hash-chained audit trail is a useful starting point, but it is session-based and is not independently anchored chain-of-custody evidence. Add or surface structured, privacy-safe run metadata where it helps debugging and review:
 
-- run/case ID and workflow version;
-- step name, start/end time, status, and bounded error code;
+- case/run ID and workflow version;
+- step name, status, duration, and bounded error code;
 - tool name and sanitized input/output summaries;
 - evidence IDs referenced by each finding;
 - model/provider and model identifier when used;
 - human decision, action, and timestamp.
 
-Do not log raw secrets, API keys, full uploaded documents, or unnecessary personal data. Trace storage must respect SATARK's current session/privacy model until a reviewed persistence design exists.
+Do not log raw secrets, API keys, full uploaded documents, or unnecessary personal data. Do not describe an in-session hash chain as durable or independently tamper-proof.
 
-### 7. Evaluate the workflow, not just the model's prose
+### 7. Evaluate the workflow, not just model prose
 
-Build a small, versioned synthetic test set before adding more autonomy. Include at least:
+Extend the existing test suite with a small, versioned synthetic evaluation set. Include at least:
 
 - clearly suspicious and benign examples;
 - ambiguous / insufficient-evidence cases;
 - conflicting indicators;
 - malformed or oversized input;
 - unavailable model/provider;
-- missing evidence reference;
+- missing or unknown evidence reference;
 - human rejection and approval-target mismatch.
 
 Measure deterministic regression results, evidence-reference validity, correct abstention/manual-review behavior, unsafe-action prevention, latency, and failure handling. A passing LLM response alone is not sufficient evidence that the investigation workflow works.
 
 ## Incremental implementation plan
 
-### Phase 1 — Contracts and tests
+### Phase 1 — Close contract and test gaps
 
 - Map the existing FIRSTLIGHT engine, SATARK analysis functions, and current UI/backend boundaries.
-- Define typed schemas for evidence, findings, workflow state, and review decisions.
-- Add unit tests for state transitions, invalid inputs, and fail-closed behavior.
-- Keep existing deterministic behavior as the baseline.
+- Identify duplicated or inconsistent schemas before adding new ones.
+- Add tests for model-output validation, missing evidence references, provider failure, and approval-target mismatch.
+- Preserve the deterministic engine as the baseline.
 
-### Phase 2 — Orchestration
+### Phase 2 — Optional bounded model assistance
 
-- Add one small orchestrator around existing functions; do not duplicate the analysis engine.
-- Run deterministic checks first and call the optional model only for bounded interpretation.
+- Reuse the existing local Ollama integration only where it adds value.
+- Run deterministic checks first; use the model for a bounded explanation or question list, not as the source of evidence or the sole risk authority.
 - Validate model output against a schema and verify every referenced evidence ID.
 - Return a structured manual-review result when output is invalid or the provider is unavailable.
 
@@ -138,17 +152,15 @@ Measure deterministic regression results, evidence-reference validity, correct a
 - Show observations separately from AI interpretation.
 - Let a reviewer inspect evidence references, uncertainty, contradictions, and missing evidence.
 - Make approve/reject decisions explicit and tied to the current action target.
-- Add a compact per-run trace without exposing secrets or raw sensitive content.
+- Surface a compact per-run trace without exposing secrets or raw sensitive content.
 
 ### Phase 4 — Regression evaluation
 
 - Run the synthetic evaluation suite in CI.
-- Add a browser smoke test for the principal FIRSTLIGHT flow if the existing web workspace supports it.
+- Add or extend browser smoke tests for the principal FIRSTLIGHT flow.
 - Document which features are deterministic, model-assisted, simulated, or genuinely connected to an external system.
 
 ## Acceptance criteria
-
-The first implementation is ready only when:
 
 - [ ] A complete investigation can finish without a model/provider being available.
 - [ ] Model output is schema-validated and cannot create evidence records by itself.
@@ -156,8 +168,8 @@ The first implementation is ready only when:
 - [ ] Invalid input, tool errors, timeouts, and model failures produce a safe, reviewable result.
 - [ ] No real response action can run solely because the model recommended it.
 - [ ] Approval is bound to the exact action and target; a changed target requires a new decision.
-- [ ] Tests cover successful, ambiguous, malformed, failure, and rejection paths.
-- [ ] The README accurately labels demo/simulated integrations versus live integrations.
+- [ ] Tests cover successful, ambiguous, malformed, provider-failure, and rejection paths.
+- [ ] Documentation accurately labels demo/simulated integrations versus live integrations.
 
 ## Scope deliberately excluded for now
 
