@@ -106,7 +106,7 @@ async def run_investigation(
     try:
         payload = InvestigationRequest.model_validate_json(b"".join(chunks))
     except ValidationError as exc:
-        return JSONResponse(status_code=422, content={"detail": exc.errors(include_input=False)})
+        return JSONResponse(status_code=422, content={"detail": exc.errors(include_input=False, include_context=False)})
     except (ValueError, UnicodeDecodeError):
         return JSONResponse(status_code=400, content={"detail": "Invalid JSON request body"})
 
