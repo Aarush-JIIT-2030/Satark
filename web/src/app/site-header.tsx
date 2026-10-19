@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Menu, X } from 'lucide-react';
 
 const links = [
@@ -16,7 +16,27 @@ const links = [
 
 export default function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tilting, setTilting] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  // The S mark tilts like a nudge, then settles and takes you home.
+  function goHome(event: MouseEvent<HTMLAnchorElement>) {
+    setMobileOpen(false);
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    setTilting(false);
+    requestAnimationFrame(() => setTilting(true));
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      setTilting(false);
+      if (pathname === '/') window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      else router.push('/');
+    }, reduce ? 0 : 420);
+  }
   // Tool-detail routes belong to the Tools section even though each has its own URL.
   const toolDetailRoutes = new Set(['/url', '/image-review', '/qr', '/pdf-review', '/media-review']);
 
@@ -24,8 +44,8 @@ export default function SiteHeader() {
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="SATARK home" onClick={() => setMobileOpen(false)}>
-          <span className="brand-mark" aria-hidden="true">S</span>
+        <Link className="brand" href="/" aria-label="SATARK home" onClick={goHome}>
+          <span className={'brand-mark' + (tilting ? ' is-tilting' : '')} aria-hidden="true">S</span>
           <span>SATARK<span className="brand-period">.</span></span>
         </Link>
         <button type="button" className="mobile-nav-toggle"
