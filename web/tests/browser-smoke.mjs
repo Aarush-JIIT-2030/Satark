@@ -334,7 +334,7 @@ async function inspectViewport(viewport, label) {
         'media review should sample six bounded representative frames');
       assert.match(await page.locator('.local-review-hash').innerText(), /[a-f0-9]{64}/i,
         'media review should fingerprint the original video bytes');
-      assert.match(await page.locator('body').innerText(), /not a deepfake|not an authenticity/i,
+      assert.match(await page.locator('body').innerText(), /not a deepfake|not an authenticity|not a forensic verdict/i,
         'media review should not claim a forensic authenticity verdict');
     }
 
