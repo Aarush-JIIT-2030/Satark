@@ -7,7 +7,7 @@
 
 SATARK Sentinel is a security-awareness and incident-investigation prototype built around **FIRSTLIGHT Incident Command**. Its web analysis defaults to local deterministic checks and can optionally use a self-hosted Ollama model. The default analysis path requires no third-party AI API key and does not send submitted content to external threat-intelligence APIs. The goal is to help a person move from scattered signals to a structured, reviewable picture of what may have happened—without presenting a heuristic score as a verdict.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20SATARK-111827?logo=vercel&logoColor=white)](https://satark-qzym.vercel.app/)
+[![Production smoke](https://github.com/kaustubhdua/Satark/actions/workflows/production-smoke.yml/badge.svg)](https://github.com/kaustubhdua/Satark/actions/workflows/production-smoke.yml)
 [![CI](https://github.com/kaustubhdua/Satark/actions/workflows/ci.yml/badge.svg)](https://github.com/kaustubhdua/Satark/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/kaustubhdua/Satark/actions/workflows/codeql.yml/badge.svg)](https://github.com/kaustubhdua/Satark/actions/workflows/codeql.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -19,7 +19,7 @@ SATARK Sentinel is a security-awareness and incident-investigation prototype bui
 
 ---
 
-> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. FIRSTLIGHT's demo incident is synthetic. Optional Microsoft Defender/Entra response adapters are opt-in, require tenant credentials and explicit target-bound confirmation, and have not been live-validated or connected to the current simulated approval UI. The session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
+> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. A verified public production URL is not currently configured; the production smoke workflow requires the repository Actions variable `SATARK_PRODUCTION_URL` before it can certify a deployment. FIRSTLIGHT's demo incident is synthetic. Optional Microsoft Defender/Entra response adapters are opt-in, require tenant credentials and explicit target-bound confirmation, and have not been live-validated or connected to the current simulated approval UI. The session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
 
 ## Contents
 
