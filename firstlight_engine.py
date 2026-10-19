@@ -319,13 +319,42 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
         searchable = " ".join((kind, source, summary, str(details.get("rule", "")).lower()))
         success = str(details.get("result", "")).lower() in {"success", "successful", "succeeded"}
 
-        if (kind in {"authentication", "login"} or "login" in searchable) and (
-            details.get("novel_source") is True or "new source" in searchable or "unfamiliar" in searchable
+        if (kind in {"authentication", "login", "sign_in"} or "login" in searchable or "sign-in" in searchable) and (
+            details.get("novel_source") is True
+            or any(term in searchable for term in ("new source", "new browser", "new device", "new location", "unfamiliar"))
         ) and (success or "successful" in searchable):
             add_rule_finding(
                 "Unfamiliar successful login",
-                "The source record marks a successful login as novel or unfamiliar. This is an investigation lead, not proof of account compromise.",
+                "The source record describes a successful login in a new or unfamiliar context. This is an investigation lead, not proof of account compromise.",
                 "high", [evidence_id], "medium",
+            )
+
+        if any(term in searchable for term in ("forwarding rule", "mailbox rule", "inbox forwarding", "mail forwarding")):
+            add_rule_finding(
+                "Mailbox forwarding or rule change",
+                "The supplied record describes a mailbox forwarding or rule change. Verify the rule owner, destination, and authorization independently.",
+                "high", [evidence_id], "medium",
+            )
+
+        if any(term in searchable for term in ("mfa", "multi-factor", "authentication settings", "authentication method changed")):
+            add_rule_finding(
+                "Authentication setting changed",
+                "The supplied record describes an authentication-setting change. Verify whether it was authorized and whether recovery methods were affected.",
+                "high", [evidence_id], "medium",
+            )
+
+        if kind in {"message", "email", "mail"} and any(term in searchable for term in ("lookalike", "urgent", "password", "otp", "credential")):
+            add_rule_finding(
+                "Social-engineering indicators",
+                "The message summary includes urgency, lookalike-domain, or credential-request language. Verify sender and destination independently; wording alone is not proof of phishing.",
+                "medium", [evidence_id], "low",
+            )
+
+        if kind == "process" and any(term in searchable for term in ("suspicious attachment", "suspicious process", "attachment path")):
+            add_rule_finding(
+                "Potentially suspicious endpoint activity",
+                "The supplied summary describes a potentially suspicious process or attachment path. This workflow does not inspect the actual process or file.",
+                "medium", [evidence_id], "low",
             )
 
         parent = str(details.get("parent", "")).lower()
