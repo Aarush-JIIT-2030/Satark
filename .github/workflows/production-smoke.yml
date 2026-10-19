@@ -62,7 +62,7 @@ jobs:
           # Match route-specific body content rather than navigation labels shared by every page.
           check_route "/" "Pause the panic|Find the signal"
           check_route "/investigate" "Suspicious URL or message"
-          check_route "/firstlight" "Launch training case"
+          check_route "/firstlight" "Sign in securely"
           check_route "/reports" "Review notes"
           check_route "/learn" "Check answers"
           check_route "/login" "Sign in securely"
