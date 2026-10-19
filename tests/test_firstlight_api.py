@@ -101,3 +101,20 @@ def test_short_api_token_fails_closed(monkeypatch):
     )
     assert response.status_code == 503
     monkeypatch.delenv("FIRSTLIGHT_API_TOKEN", raising=False)
+
+
+
+def test_chunked_oversized_request_is_rejected_without_content_length():
+    # A streaming iterable avoids relying on Content-Length for the limit.
+    chunks = iter([
+        b'{"case_id":"CASE-OVERSIZE","title":"Oversized","evidence":[],"padding":"',
+        b"x" * (2 * 1024 * 1024),
+        b'"}',
+    ])
+    response = client.post(
+        "/api/v1/cases/investigate",
+        content=chunks,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Request body is too large"
