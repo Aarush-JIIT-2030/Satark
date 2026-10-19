@@ -23,6 +23,31 @@ SATARK is not a general-purpose chatbot. Its useful job is to help a reviewer mo
 
 The reference repository, [GenAI_Agents by Nir Diamant](https://github.com/NirDiamant/GenAI_Agents), is a teaching collection covering agent control flow, tools, memory, orchestration, and evaluation. This document adapts those general engineering ideas to SATARK. It does **not** copy notebooks, source code, prompts, images, or other repository assets. No framework or dependency is required by this design document.
 
+## What is being implemented now
+
+The first code pass closes one concrete correctness gap in FIRSTLIGHT:
+
+- Findings are derived from the actual supplied evidence records instead of being permanently tied to the demo IDs `EV-001` through `EV-005`.
+- The current rules look for unfamiliar successful logins, unusual process ancestry, suspicious network signals, archive/staging-like artifacts, and follow-on sessions. Each remains a heuristic and is worded as a lead, not a verdict.
+- Correlation uses evidence IDs from the current case only. A record with a failed integrity check cannot support a finding.
+- A case that matches no current rule receives an explicit “no rule matched” / analyst-review finding rather than an implied clean bill of health.
+- Response proposals no longer hard-code the demo host name. They remain simulator-only and make clear that the prototype does not change real systems.
+- Regression tests cover custom evidence IDs, custom event records, finding references, and abstention when no rule matches.
+
+These rules are deliberately small and explainable. They are not a replacement for a proper detection engine or analyst validation.
+
+## Corsair: useful patterns, not a dependency to copy wholesale
+
+[Corsair](https://github.com/corsairdev/corsair) describes itself as an integration platform that exposes integrations through a common REST-oriented interface and provides adapters for agent frameworks. The patterns most relevant to SATARK are:
+
+1. **A consistent integration boundary:** normalize outputs from any future threat-intelligence, identity, endpoint, or ticketing connector into a SATARK-owned schema.
+2. **Small provider adapters:** keep vendor-specific auth and API details out of the investigation engine so connectors can be tested independently or disabled.
+3. **Event/webhook ingestion:** useful later for receiving security alerts without polling everything. Any webhook must authenticate the sender, validate the payload, deduplicate events, and preserve source/timestamp metadata.
+4. **Credential and permission isolation:** use least-privilege credentials, explicit opt-in, bounded scopes, and visible connection state; never expose provider tokens to the model or browser.
+5. **Tool capability allowlists:** the model should only see approved read-only tools by default. Consequential response actions stay behind explicit human approval.
+
+**Decision for the hackathon:** do not add Corsair as a runtime dependency yet. SATARK currently spans Python/Streamlit and a separate web workspace; adopting a broad TypeScript integration platform now would add setup and authentication complexity before a single live connector is proven. Implement a thin SATARK-owned adapter contract first, then evaluate Corsair if multiple real integrations are needed and its supported auth/deployment model fits the app. Do not claim any connector is live until credentials, permissions, error paths, and end-to-end tests are validated.
+
 ## Recommended workflow
 
 ```text
@@ -135,9 +160,10 @@ Measure deterministic regression results, evidence-reference validity, correct a
 
 ### Phase 1 — Close contract and test gaps
 
-- Map the existing FIRSTLIGHT engine, SATARK analysis functions, and current UI/backend boundaries.
-- Identify duplicated or inconsistent schemas before adding new ones.
-- Add tests for model-output validation, missing evidence references, provider failure, and approval-target mismatch.
+- [x] Map the existing FIRSTLIGHT engine and inspect the current integration boundaries.
+- [x] Replace demo-ID-specific finding rules with evidence-driven, deterministic heuristics.
+- [x] Add tests for custom evidence IDs and no-rule-match abstention.
+- [ ] Add schema validation for optional model output, provider failure tests, and approval-target mismatch tests.
 - Preserve the deterministic engine as the baseline.
 
 ### Phase 2 — Optional bounded model assistance
@@ -181,6 +207,7 @@ Measure deterministic regression results, evidence-reference validity, correct a
 
 These may be evaluated later if a specific SATARK requirement justifies their cost and risk.
 
-## Reference
+## References
 
 - Nir Diamant, [GenAI_Agents](https://github.com/NirDiamant/GenAI_Agents) — general learning reference for agent control flow, tools, memory, orchestration, and evaluation. This SATARK design is an original, project-specific adaptation and does not include copied code or assets.
+- [Corsair](https://github.com/corsairdev/corsair) — integration-platform reference for common connector boundaries, provider adapters, and webhook patterns. SATARK borrows these architectural ideas only; it does not copy Corsair source or add it as a dependency.
