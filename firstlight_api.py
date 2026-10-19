@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from firstlight_engine import investigate_case, sha256_record
+from firstlight_agents import run_independent_agents
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE = 500
@@ -146,8 +147,22 @@ async def run_investigation(
         })
 
     result = investigate_case({"case_id": payload.case_id, "title": payload.title}, envelopes)
+    try:
+        agent_analysis = run_independent_agents([
+            {"id": item.id, "time": item.time, "source": item.source, "kind": item.kind,
+             "summary": item.summary, "integrity": "verified" if check["valid"] else "mismatch"}
+            for item, check in zip(payload.evidence, integrity)
+        ])
+    except Exception:
+        # Model failures never replace or suppress deterministic investigation output.
+        agent_analysis = {
+            "enabled": os.getenv("FIRSTLIGHT_MODEL_AGENTS_ENABLED", "").lower() in {"1", "true", "yes"},
+            "mode": "agent_error",
+            "agents": [],
+            "limitations": ["Agent orchestration failed; deterministic findings remain authoritative."],
+        }
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "case_id": payload.case_id,
         "integrity": integrity,
         "integrity_summary": {
@@ -156,6 +171,7 @@ async def run_investigation(
             "mismatched": sum(1 for item in integrity if not item["valid"]),
         },
         "investigation": result,
+        "agent_analysis": agent_analysis,
         "limitations": [
             "Only client-supplied event summaries were reviewed; no live endpoint collection occurred.",
             "Browser-computed hashes detect changes relative to the submitted digest but do not prove source authenticity or establish an independently protected chain of custody.",
