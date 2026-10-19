@@ -253,5 +253,49 @@ class FirstlightEngineTests(unittest.TestCase):
         self.assertFalse(result["findings"][0]["evidence_available"])
         self.assertIn("not a safety clearance", result["findings"][0]["explanation"])
 
+    def test_agent_trace_is_grounded_in_current_case_and_discloses_deterministic_mode(self):
+        custom_events = [
+            {
+                "event_id": "TRACE-1",
+                "timestamp": "2026-10-10T09:00:00Z",
+                "source": "identity",
+                "kind": "authentication",
+                "summary": "Successful login from unfamiliar source",
+                "details": {"result": "success", "novel_source": True},
+            },
+            {
+                "event_id": "TRACE-2",
+                "timestamp": "2026-10-10T09:03:00Z",
+                "source": "endpoint",
+                "kind": "process",
+                "summary": "Script launched",
+                "details": {"process": "powershell.exe", "parent": "outlook.exe"},
+            },
+        ]
+        evidence = [seal_evidence(event) for event in custom_events]
+        result = investigate_case({"case_id": "TRACE-CASE"}, evidence)
+
+        self.assertEqual(result["schema_version"], "1.1")
+        self.assertFalse(result["orchestrator"]["model_agents_enabled"])
+        self.assertEqual(result["orchestrator"]["mode"], "bounded_deterministic")
+        self.assertEqual(result["orchestrator"]["agent_count"], len(result["agent_trace"]))
+        self.assertEqual(result["agents"], result["agent_trace"])
+        self.assertEqual(
+            {agent["agent_id"] for agent in result["agent_trace"]},
+            {"evidence_integrity", "evidence_triage", "detection_correlation",
+             "timeline_reconstruction", "verification", "response_planning"},
+        )
+        known_ids = {item["evidence_id"] for item in evidence}
+        for agent in result["agent_trace"]:
+            self.assertEqual(agent["mode"], "deterministic")
+            self.assertTrue(set(agent["evidence_ids"]).issubset(known_ids))
+            self.assertGreaterEqual(agent["inputs"], 0)
+            self.assertGreaterEqual(agent["outputs"], 0)
+        detection = next(a for a in result["agent_trace"] if a["agent_id"] == "detection_correlation")
+        self.assertEqual(detection["outputs"], len([
+            finding for finding in result["findings"]
+            if finding["title"] != "No rule matched — analyst review required"
+        ]))
+
 if __name__ == "__main__":
     unittest.main()
