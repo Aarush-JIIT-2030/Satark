@@ -294,11 +294,118 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
             "state": "supported" if valid_refs else "unverified",
         })
 
-    finding("F-001", "Unfamiliar successful login", "The synthetic identity event marks the source as novel. This is an investigation lead, not proof that the login was malicious.", "high", ["EV-001"], "medium")
-    finding("F-002", "Unusual process ancestry", "A script interpreter is recorded with an email client as its parent. Correlate with endpoint telemetry before concluding execution intent.", "high", ["EV-002"], "medium")
-    finding("F-003", "Network activity after suspicious process", "A test-domain connection follows the process event in the supplied timeline. The relationship is temporal correlation, not proof of causation.", "medium", ["EV-002", "EV-003"], "medium")
-    finding("F-004", "Possible data staging", "A temporary archive is recorded. Its contents and transfer status are not established by this artifact alone.", "medium", ["EV-004"], "low")
-    finding("F-005", "Follow-on identity session", "A second session appears after the unfamiliar login. Confirm session provenance and revoke only through an authorized response workflow.", "medium", ["EV-001", "EV-005"], "medium")
+    # Derive findings from the supplied records rather than assuming demo IDs.
+    # These are explainable triage heuristics, not proof of malicious activity.
+    valid_records = {
+        str(item.get("evidence_id")): item.get("record", {})
+        for item in evidence
+        if item.get("evidence_id") is not None and verify_evidence(item)["valid"]
+        and isinstance(item.get("record"), dict)
+    }
+    next_finding = 1
+
+    def add_rule_finding(title: str, explanation: str, severity: str, refs: list[str], confidence: str) -> None:
+        nonlocal next_finding
+        finding(f"F-{next_finding:03d}", title, explanation, severity, refs, confidence)
+        next_finding += 1
+
+    records = [(eid, record) for eid, record in valid_records.items()]
+    for evidence_id, record in records:
+        kind = str(record.get("kind", "")).lower()
+        source = str(record.get("source", "")).lower()
+        summary = str(record.get("summary", "")).lower()
+        details = record.get("details", {})
+        details = details if isinstance(details, dict) else {}
+        searchable = " ".join((kind, source, summary, str(details.get("rule", "")).lower()))
+        success = str(details.get("result", "")).lower() in {"success", "successful", "succeeded"}
+
+        if (kind in {"authentication", "login"} or "login" in searchable) and (
+            details.get("novel_source") is True or "new source" in searchable or "unfamiliar" in searchable
+        ) and (success or "successful" in searchable):
+            add_rule_finding(
+                "Unfamiliar successful login",
+                "The source record marks a successful login as novel or unfamiliar. This is an investigation lead, not proof of account compromise.",
+                "high", [evidence_id], "medium",
+            )
+
+        parent = str(details.get("parent", "")).lower()
+        process = str(details.get("process", "")).lower()
+        unusual_parent = any(term in parent for term in ("outlook", "winword", "excel", "browser", "email"))
+        script_process = any(term in process for term in ("powershell", "wscript", "cscript", "cmd.exe", "bash", "python"))
+        if kind == "process" and (details.get("rule") == "unusual_parent_child" or (unusual_parent and script_process)):
+            add_rule_finding(
+                "Unusual process ancestry",
+                "The source records a script-capable process with a potentially unusual parent or rule match. Correlate with endpoint telemetry before inferring intent.",
+                "high", [evidence_id], "medium",
+            )
+
+        destination = str(details.get("destination", "")).lower()
+        if kind in {"connection", "network"} and (
+            "suspicious" in searchable or details.get("disposition") == "suspicious"
+            or destination.endswith(".invalid")
+        ):
+            related = [evidence_id]
+            host = details.get("host")
+            current_time = _timeline_sort_key(record.get("timestamp"))
+            prior_processes = [
+                eid for eid, other in records
+                if eid != evidence_id
+                and str(other.get("kind", "")).lower() == "process"
+                and isinstance(other.get("details"), dict)
+                and (not host or other["details"].get("host") == host)
+                and _timeline_sort_key(other.get("timestamp")) <= current_time
+            ]
+            if prior_processes:
+                related.insert(0, prior_processes[-1])
+            add_rule_finding(
+                "Potentially suspicious network activity",
+                "The record contains a suspicious-destination signal. Any link to earlier process activity is temporal correlation, not proof of causation; verify destination context independently.",
+                "medium", related, "low" if len(related) == 1 else "medium",
+            )
+
+        path = str(details.get("path", "")).lower()
+        if kind in {"file", "filesystem"} and (
+            any(term in path for term in (".zip", ".7z", ".rar", ".tar", ".gz"))
+            or any(term in searchable for term in ("archive", "staging", "staged"))
+            or "temp" in path
+        ):
+            add_rule_finding(
+                "Possible data staging",
+                "A file or archive-like artifact may indicate staging. The artifact alone does not establish its contents, purpose, or transfer.",
+                "medium", [evidence_id], "low",
+            )
+
+        if kind == "session" or "session" in searchable:
+            account = details.get("account")
+            current_time = _timeline_sort_key(record.get("timestamp"))
+            prior_auth = [
+                eid for eid, other in records
+                if eid != evidence_id
+                and str(other.get("kind", "")).lower() in {"authentication", "login"}
+                and isinstance(other.get("details"), dict)
+                and (not account or other["details"].get("account") == account)
+                and _timeline_sort_key(other.get("timestamp")) <= current_time
+            ]
+            if prior_auth:
+                add_rule_finding(
+                    "Follow-on identity session",
+                    "A session record follows an authentication event for the same account or an unspecified account. Confirm session provenance before taking action.",
+                    "medium", [prior_auth[-1], evidence_id], "medium",
+                )
+
+    if not findings:
+        # Make the absence of a matching heuristic explicit rather than
+        # implying the case is safe or inventing a positive finding.
+        findings.append({
+            "finding_id": "F-001",
+            "title": "No rule matched — analyst review required",
+            "explanation": "The supplied evidence did not match the current deterministic triage rules. This is not a safety clearance; review the source records and add case-specific checks as needed.",
+            "severity": "info",
+            "evidence_ids": [],
+            "evidence_available": False,
+            "confidence": "low",
+            "state": "unverified",
+        })
 
     timeline = []
     for item in evidence:
@@ -333,9 +440,9 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
             "Network destination reputation is simulated and has not been queried externally.",
         ],
         "response_proposals": [
-            {"action_id": "ACT-001", "title": "Isolate simulated endpoint WS-DEMO-04", "impact": "Would contain the demo host in the simulator; no real device is affected.", "risk": "high", "status": "pending"},
-            {"action_id": "ACT-002", "title": "Revoke simulated account sessions", "impact": "Would invalidate demo sessions only; verify identity and business impact first.", "risk": "high", "status": "pending"},
-            {"action_id": "ACT-003", "title": "Preserve endpoint and identity logs", "impact": "Retain additional artifacts before containment where feasible.", "risk": "low", "status": "pending"},
+            {"action_id": "ACT-001", "title": f"Preserve evidence for case {case_id}", "impact": "Would mark evidence-preservation as approved in the simulator only; no files are changed.", "risk": "low", "status": "pending"},
+            {"action_id": "ACT-002", "title": "Review and contain affected assets", "impact": "Analyst must identify and confirm an exact target before any real response; this prototype only records a simulated decision.", "risk": "high", "status": "pending"},
+            {"action_id": "ACT-003", "title": "Review identity sessions and access", "impact": "Analyst must verify the account and business impact; this prototype does not revoke real sessions.", "risk": "high", "status": "pending"},
         ],
     }
 
