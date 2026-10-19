@@ -14,7 +14,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from firstlight_engine import investigate_case, seal_evidence, sha256_record, verify_evidence
+from firstlight_engine import investigate_case, sha256_record
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE = 500
