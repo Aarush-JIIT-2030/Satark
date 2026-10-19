@@ -126,7 +126,7 @@ export default function InvestigatePage() {
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
         <ServiceReadiness />
-        <div className="eyebrow">WORKSPACE / INVESTIGATE</div>
+        <div className="eyebrow">Investigate</div>
         <h1>Start with the evidence.</h1>
         <p className="lead">Submit a suspicious message or URL as text. SATARK runs local deterministic checks and can use an optional self-hosted Ollama model. It will not visit the URL or execute files.</p>
         <section className="form-panel" aria-labelledby="investigation-title">
@@ -146,7 +146,7 @@ export default function InvestigatePage() {
               </button>
             </div>
           </div>
-          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c9f36b" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking local rules", "Using self-hosted model if configured"]} working={busy} color="#c9f36b" fontSize={13} shimmer /></div>}
+          {busy && <div className="analysis-progress" aria-label="Analysis in progress"><LatticeLoader status="working" label="Analyzing" pattern="orbit" grid={3} color="#c4b5fd" showTimer /><ThoughtLine label="Reviewing submitted content" doneLabel="Analysis complete" steps={["Validating input", "Checking local rules", "Using self-hosted model if configured"]} working={busy} color="#c4b5fd" fontSize={13} shimmer /></div>}
           {error && <div className="result error" role="alert">{error}</div>}
           {result && <section className="analysis-result" aria-live="polite" aria-labelledby="analysis-result-title">
             <div className="result-top">

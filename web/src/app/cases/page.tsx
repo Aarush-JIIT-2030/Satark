@@ -179,13 +179,13 @@ export default function CasesPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">WORKSPACE / CASE MANAGEMENT</div>
+        <div className="eyebrow">Case management</div>
         <h1>Manage <span>saved cases.</span></h1>
         <p className="lead">Create and track investigations across your workspaces. Case access and changes are authorized by the server and enforced by database row-level security—not by this interface alone.</p>
 
         {!session ? (
           <section className="form-panel" aria-labelledby="case-access-title">
-            <div className="card-head"><span>AUTHENTICATION REQUIRED</span><span className="pill">PRIVATE WORKSPACE</span></div>
+            <div className="card-head"><span>Authentication required</span><span className="pill">Private workspace</span></div>
             <h2 id="case-access-title">Sign in to manage saved cases</h2>
             <p className="muted">Public analysis tools remain available without an account. Persistent cases require a valid session and workspace membership.</p>
             <div className="actions">
@@ -203,8 +203,8 @@ export default function CasesPage() {
           <>
             <section className="form-panel" aria-labelledby="case-workspace-heading">
               <div className="panel-heading">
-                <div><div className="panel-kicker">PERSISTENT WORKSPACE</div><h2 id="case-workspace-heading">Investigation overview</h2></div>
-                <span className="safe-chip"><ShieldCheck size={14} /> SERVER-AUTHORIZED</span>
+                <div><div className="panel-kicker">Persistent workspace</div><h2 id="case-workspace-heading">Investigation overview</h2></div>
+                <span className="safe-chip"><ShieldCheck size={14} /> Server-authorized</span>
               </div>
               <div className="form-bottom case-toolbar">
                 <div className="case-workspace-picker">
@@ -219,9 +219,9 @@ export default function CasesPage() {
               </div>
               {tenant && <p className="hint">Workspace: {tenant.name} · Role: {tenant.role} · {cases.length} saved case{cases.length === 1 ? '' : 's'}</p>}
               <div className="workspace-grid case-metrics" aria-label="Case summary">
-                <article className="workspace-card"><div className="eyebrow">OPEN</div><h3>{summary.open}</h3><p>Cases needing active review.</p></article>
-                <article className="workspace-card"><div className="eyebrow">CONTAINED</div><h3>{summary.contained}</h3><p>Cases marked as contained.</p></article>
-                <article className="workspace-card"><div className="eyebrow">HIGH PRIORITY</div><h3>{summary.highPriority}</h3><p>Cases with high or critical severity.</p></article>
+                <article className="workspace-card"><div className="eyebrow">Open</div><h3>{summary.open}</h3><p>Cases needing active review.</p></article>
+                <article className="workspace-card"><div className="eyebrow">Contained</div><h3>{summary.contained}</h3><p>Cases marked as contained.</p></article>
+                <article className="workspace-card"><div className="eyebrow">High priority</div><h3>{summary.highPriority}</h3><p>Cases with high or critical severity.</p></article>
               </div>
               {error && <p className="error-message" role="alert">{error}</p>}
               {notice && <p className="success-message" role="status">{notice}</p>}
@@ -229,7 +229,7 @@ export default function CasesPage() {
 
             {tenant && !readOnly && (
               <section className="form-panel" aria-labelledby="new-case-heading">
-                <div className="panel-kicker">NEW INVESTIGATION</div>
+                <div className="panel-kicker">New investigation</div>
                 <h2 id="new-case-heading">Create a case</h2>
                 <p className="muted">Record a short, factual title. Add evidence and findings after the case has been created. Avoid putting passwords, tokens, or unnecessary personal data in case titles.</p>
                 <form onSubmit={submitCase}>
@@ -251,7 +251,7 @@ export default function CasesPage() {
 
             <section className="form-panel" aria-labelledby="saved-cases-heading">
               <div className="panel-heading">
-                <div><div className="panel-kicker">CASE REGISTER</div><h2 id="saved-cases-heading">Saved cases</h2></div>
+                <div><div className="panel-kicker">Case register</div><h2 id="saved-cases-heading">Saved cases</h2></div>
                 <span className="pill">{visibleCases.length} SHOWN</span>
               </div>
               <div className="case-filters">

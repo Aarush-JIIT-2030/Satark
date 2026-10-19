@@ -30,7 +30,7 @@ export default function UrlReviewPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">WORKSPACE / URL INSPECTION</div>
+        <div className="eyebrow">URL inspection</div>
         <h1>Inspect the link. Don’t visit it.</h1>
         <p className="lead">Review URL structure locally before deciding what to do next. SATARK never fetches the destination from this page.</p>
         <section className="form-panel" aria-labelledby="url-inspect-heading">
@@ -46,7 +46,7 @@ export default function UrlReviewPage() {
           {result && !result.ok && <p className="error-message" role="alert">{result.error}</p>}
           {result?.ok && (
             <section className="notice-panel" aria-labelledby="url-result-heading" aria-live="polite">
-              <div className="eyebrow">OBSERVATIONS · NOT A VERDICT</div>
+              <div className="eyebrow">Observations · not a verdict</div>
               <h3 id="url-result-heading">{result.summary}</h3>
               <dl className="detail-list">
                 <div><dt>Hostname</dt><dd>{result.hostname}</dd></div>
