@@ -6,7 +6,6 @@ rules. It performs no live collection or real response actions.
 """
 from __future__ import annotations
 
-import hashlib
 import hmac
 import os
 from typing import Any
@@ -19,7 +18,6 @@ from firstlight_engine import investigate_case, seal_evidence, sha256_record, ve
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_EVIDENCE = 500
-HEX_SHA256 = set("0123456789abcdef")
 app = FastAPI(title="FIRSTLIGHT Investigation API", version="1.0.0", docs_url=None, redoc_url=None)
 
 
@@ -84,17 +82,20 @@ async def health():
 
 @app.post("/api/v1/cases/investigate")
 async def run_investigation(
-    request: InvestigationRequest,
+    payload: InvestigationRequest,
+    request: Request,
     authorization: str | None = Header(default=None),
 ):
     _authorize(authorization)
-    ids = [item.id for item in request.evidence]
+    if len(await request.body()) > MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="Request body is too large")
+    ids = [item.id for item in payload.evidence]
     if len(ids) != len(set(ids)):
         raise HTTPException(status_code=422, detail="Evidence IDs must be unique within a case")
 
     envelopes: list[dict[str, Any]] = []
     integrity = []
-    for item in request.evidence:
+    for item in payload.evidence:
         # This representation is also used by the browser when hashing evidence.
         record = {
             "event_id": item.id,
@@ -123,10 +124,10 @@ async def run_investigation(
             "integrity_status": "verified" if valid else "mismatch",
         })
 
-    result = investigate_case({"case_id": request.case_id, "title": request.title}, envelopes)
+    result = investigate_case({"case_id": payload.case_id, "title": payload.title}, envelopes)
     return {
         "schema_version": "1.0",
-        "case_id": request.case_id,
+        "case_id": payload.case_id,
         "integrity": integrity,
         "integrity_summary": {
             "total": len(integrity),
