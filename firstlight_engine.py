@@ -348,15 +348,16 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
             host = details.get("host")
             current_time = _timeline_sort_key(record.get("timestamp"))
             prior_processes = [
-                eid for eid, other in records
+                (eid, other) for eid, other in records
                 if eid != evidence_id
                 and str(other.get("kind", "")).lower() == "process"
                 and isinstance(other.get("details"), dict)
                 and (not host or other["details"].get("host") == host)
                 and _timeline_sort_key(other.get("timestamp")) <= current_time
             ]
+            prior_processes.sort(key=lambda pair: _timeline_sort_key(pair[1].get("timestamp")))
             if prior_processes:
-                related.insert(0, prior_processes[-1])
+                related.insert(0, prior_processes[-1][0])
             add_rule_finding(
                 "Potentially suspicious network activity",
                 "The record contains a suspicious-destination signal. Any link to earlier process activity is temporal correlation, not proof of causation; verify destination context independently.",
@@ -379,18 +380,19 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
             account = details.get("account")
             current_time = _timeline_sort_key(record.get("timestamp"))
             prior_auth = [
-                eid for eid, other in records
+                (eid, other) for eid, other in records
                 if eid != evidence_id
                 and str(other.get("kind", "")).lower() in {"authentication", "login"}
                 and isinstance(other.get("details"), dict)
                 and (not account or other["details"].get("account") == account)
                 and _timeline_sort_key(other.get("timestamp")) <= current_time
             ]
+            prior_auth.sort(key=lambda pair: _timeline_sort_key(pair[1].get("timestamp")))
             if prior_auth:
                 add_rule_finding(
                     "Follow-on identity session",
                     "A session record follows an authentication event for the same account or an unspecified account. Confirm session provenance before taking action.",
-                    "medium", [prior_auth[-1], evidence_id], "medium",
+                    "medium", [prior_auth[-1][0], evidence_id], "medium",
                 )
 
     if not findings:
