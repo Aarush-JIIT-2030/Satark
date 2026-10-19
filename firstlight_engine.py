@@ -439,24 +439,101 @@ def investigate_case(case: dict[str, Any], evidence: list[dict[str, Any]]) -> di
     if any(str(record.get("kind", "")).lower() in {"connection", "network"} for _, record in records):
         gaps.append("Network destination reputation was not independently verified by this workflow.")
 
+    evidence_priorities = prioritize_evidence(evidence)
+    response_proposals = [
+        {"action_id": "ACT-001", "title": f"Preserve evidence for case {case_id}", "impact": "Would mark evidence-preservation as approved in the simulator only; no files are changed.", "risk": "low", "status": "pending"},
+        {"action_id": "ACT-002", "title": "Review and contain affected assets", "impact": "Analyst must identify and confirm an exact target before any real response; this prototype only records a simulated decision.", "risk": "high", "status": "pending"},
+        {"action_id": "ACT-003", "title": "Review identity sessions and access", "impact": "Analyst must verify the account and business impact; this prototype does not revoke real sessions.", "risk": "high", "status": "pending"},
+    ]
+    matched_findings = [
+        item for item in findings
+        if item.get("title") != "No rule matched — analyst review required"
+    ]
+    referenced_ids = sorted({
+        evidence_id
+        for item in findings
+        for evidence_id in item.get("evidence_ids", [])
+    })
+    agent_trace = [
+        {
+            "agent_id": "evidence_integrity",
+            "name": "Evidence Integrity Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(evidence),
+            "outputs": len(valid_ids),
+            "evidence_ids": list(valid_ids),
+            "summary": f"Checked {len(evidence)} supplied records; {len(valid_ids)} matched their sealed hash and identity.",
+        },
+        {
+            "agent_id": "evidence_triage",
+            "name": "Evidence Triage Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(evidence),
+            "outputs": len(evidence_priorities),
+            "evidence_ids": [item["evidence_id"] for item in evidence_priorities],
+            "summary": "Ranked supplied records using transparent volatility, relevance, recency and integrity heuristics; scores are not probabilities.",
+        },
+        {
+            "agent_id": "detection_correlation",
+            "name": "Detection & Correlation Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(valid_records),
+            "outputs": len(matched_findings),
+            "evidence_ids": referenced_ids,
+            "summary": f"Produced {len(matched_findings)} rule-backed investigation lead(s) from integrity-verified records; temporal links do not prove causation.",
+        },
+        {
+            "agent_id": "timeline_reconstruction",
+            "name": "Timeline Reconstruction Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(evidence),
+            "outputs": len(timeline),
+            "evidence_ids": [item["event_id"] for item in timeline if item.get("evidence_ids")],
+            "summary": f"Ordered {len(timeline)} supplied events by source timestamp; records with invalid integrity remain visible but untrusted.",
+        },
+        {
+            "agent_id": "verification",
+            "name": "Verification & Gap Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(findings),
+            "outputs": sum(bool(item.get("evidence_ids")) for item in findings),
+            "evidence_ids": referenced_ids,
+            "summary": f"Checked evidence references and recorded {len(gaps)} explicit evidence gap(s); unsupported claims remain unverified.",
+        },
+        {
+            "agent_id": "response_planning",
+            "name": "Response Planning Agent",
+            "mode": "deterministic",
+            "status": "completed",
+            "inputs": len(findings),
+            "outputs": len(response_proposals),
+            "evidence_ids": referenced_ids,
+            "summary": "Prepared reviewable proposals only. Approval records a simulation and never executes a real response action.",
+        },
+    ]
     return {
+        "schema_version": "1.1",
         "case_id": case_id,
-        "orchestrator": {"status": "completed", "strategy": "Preserve → detect → correlate → verify → propose response"},
-        "agents": [
-            {"name": "Evidence Agent", "status": "completed", "summary": f"Reviewed {len(evidence)} evidence records; {len(valid_ids)} passed integrity verification."},
-            {"name": "Detection Agent", "status": "completed", "summary": "Applied deterministic checks to synthetic identity, process, network and file events."},
-            {"name": "Correlation Agent", "status": "completed", "summary": "Ordered events by source timestamps and linked temporally related activity."},
-            {"name": "Verification Agent", "status": "completed", "summary": "Attached evidence IDs to findings and labelled inference and unknowns explicitly."},
-        ],
+        "orchestrator": {
+            "status": "completed",
+            "mode": "bounded_deterministic",
+            "strategy": "Preserve → triage → detect/correlate → reconstruct → verify → propose response",
+            "agent_count": len(agent_trace),
+            "model_agents_enabled": False,
+            "note": "Named stages are deterministic workflow agents in this prototype, not independent LLM agents.",
+        },
+        "agents": agent_trace,
+        "agent_trace": agent_trace,
         "findings": findings,
-        "evidence_priorities": prioritize_evidence(evidence),
+        "evidence_priorities": evidence_priorities,
         "timeline": timeline,
         "gaps": gaps,
-        "response_proposals": [
-            {"action_id": "ACT-001", "title": f"Preserve evidence for case {case_id}", "impact": "Would mark evidence-preservation as approved in the simulator only; no files are changed.", "risk": "low", "status": "pending"},
-            {"action_id": "ACT-002", "title": "Review and contain affected assets", "impact": "Analyst must identify and confirm an exact target before any real response; this prototype only records a simulated decision.", "risk": "high", "status": "pending"},
-            {"action_id": "ACT-003", "title": "Review identity sessions and access", "impact": "Analyst must verify the account and business impact; this prototype does not revoke real sessions.", "risk": "high", "status": "pending"},
-        ],
+        "response_proposals": response_proposals,
     }
 
 
