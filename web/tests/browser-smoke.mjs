@@ -388,6 +388,9 @@ async function inspectViewport(viewport, label) {
       await page.getByText('MISMATCH').first().waitFor();
       await page.getByRole('button', { name: /restore demo/i }).first().click();
       await page.getByText('HASHED').first().waitFor();
+      assert.equal(await page.getByText('MISMATCH', { exact: true }).count(), 0, 'restore demo must clear every tamper mismatch');
+      assert.equal(await page.getByText('[SIMULATED TAMPER]', { exact: false }).count(), 0, 'restore demo must remove the simulated tamper marker from the record');
+      assert.equal(await page.getByText('HASHED', { exact: true }).count(), 5, 'all five evidence records should read HASHED after restore');
 
       await page.getByRole('button', { name: /findings & gaps/i }).click();
       await page.getByRole('heading', { name: /findings & evidence gaps/i }).waitFor();

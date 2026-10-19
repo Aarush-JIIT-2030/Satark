@@ -313,7 +313,7 @@ export default function MediaReviewPage() {
 
   return (
     <main className="shell">
-      <SiteHeader status />
+      <SiteHeader />
       <div className="container subpage local-review-page" id="main-content" tabIndex={-1}>
         <div className="eyebrow">LOCAL ANALYSIS / MEDIA</div>
         <h1>Inspect the <span>frames.</span></h1>

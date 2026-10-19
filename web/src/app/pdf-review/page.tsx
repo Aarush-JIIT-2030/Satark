@@ -246,7 +246,7 @@ export default function PdfReviewPage() {
 
   return (
     <main className="shell">
-      <SiteHeader status />
+      <SiteHeader />
       <div className="container subpage local-review-page" id="main-content" tabIndex={-1}>
         <div className="eyebrow">LOCAL ANALYSIS / DOCUMENTS</div>
         <h1>Review the <span>document.</span></h1>

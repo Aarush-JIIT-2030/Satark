@@ -47,6 +47,7 @@ export default function QrPage() {
   const [payloads, setPayloads] = useState<string[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, LocalAnalysis>>({});
   const [notice, setNotice] = useState('');
+  const [copyNotice, setCopyNotice] = useState('');
 
   async function decode() {
     setError('');
@@ -109,6 +110,17 @@ export default function QrPage() {
     } finally {
       bitmap?.close();
       setBusy(false);
+    }
+  }
+
+  async function copyPayload(payload: string) {
+    setCopyNotice('');
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable in this browser.');
+      await navigator.clipboard.writeText(payload);
+      setCopyNotice('Payload copied to clipboard.');
+    } catch {
+      setCopyNotice('Could not access the clipboard. Select and copy the payload text above instead.');
     }
   }
 
@@ -177,9 +189,10 @@ export default function QrPage() {
                   <pre className="code-output">{payload}</pre>
                   <p>{classification.note}</p>
                   <div className="actions">
-                    <button className="btn btn-secondary" type="button" onClick={() => { void navigator.clipboard?.writeText(payload).catch(() => undefined); }}>Copy payload</button>
+                    <button className="btn btn-secondary" type="button" onClick={() => { void copyPayload(payload); }}>Copy payload</button>
                     {classification.isWebUrl && <button className="btn btn-primary" type="button" disabled={analyzingPayload !== null} onClick={() => { void analyzePayload(payload); }}>{analyzingPayload === payload ? 'Inspecting locally…' : analysis ? 'Run local inspection again' : 'Inspect URL locally'}</button>}
                   </div>
+                  {copyNotice && <p role="status" className="export-feedback">{copyNotice}</p>}
                   {analysisError && analyzingPayload === null && <p role="alert" className="error-message">{analysisError}</p>}
                   {analysis && <section className="analysis-result" aria-live="polite" aria-label="Local URL inspection result">
                     <div className="result-top"><span className="pill">{analysis.threat_category}</span><strong>Heuristic priority: {analysis.risk_score}/100</strong></div>

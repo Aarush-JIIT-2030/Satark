@@ -17,6 +17,9 @@ test('QR page uses bounded local decoding and never fetches decoded URLs', async
   assert.ok(!source.includes('fetch(payload'), 'decoded destination must never be fetched');
   assert.ok(!source.includes('window.open'), 'decoded payload must not open a new destination automatically');
   assert.ok(!source.includes('location.href ='), 'decoded payload must not navigate the browser automatically');
+  assert.ok(source.includes('async function copyPayload(payload: string)'), 'copy action must report its result');
+  assert.ok(source.includes('Payload copied to clipboard.'), 'successful clipboard writes must be confirmed');
+  assert.ok(source.includes('Select and copy the payload text above instead.'), 'clipboard failures must provide a usable fallback');
 });
 
 test('capability directory labels unported media tools honestly', async () => {

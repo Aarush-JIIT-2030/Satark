@@ -222,7 +222,7 @@ export default function ImageReviewPage() {
           <div className="workspace-grid">
             <div className="info-panel">
               <h3>Preview</h3>
-              {preview && <img src={preview} alt={'Local preview of ' + inspection.name} style={{ display: 'block', maxWidth: '100%', maxHeight: 420, objectFit: 'contain', margin: '0 auto', borderRadius: 12 }} />}
+              {preview && <img className="image-preview" src={preview} alt={'Local preview of ' + inspection.name} />}
             </div>
             <div className="info-panel">
               <h3>File facts</h3>
@@ -235,7 +235,7 @@ export default function ImageReviewPage() {
             </div>
           </div>
           <h3>SHA-256 fingerprint</h3>
-          <p className="field-note" style={{ overflowWrap: 'anywhere' }}>{inspection.sha256}</p>
+          <p className="field-note hash-value">{inspection.sha256}</p>
           <button className="btn btn-secondary" onClick={() => {
             if (!navigator.clipboard?.writeText) {
               setError('Clipboard access is unavailable. Select and copy the fingerprint manually.');
