@@ -155,7 +155,7 @@ export default function PersistentCasePanel({
           if (!existingResponse.ok) throw new Error('Finding already exists, but its stored version could not be checked safely.');
           const existingPayload = await existingResponse.json() as {findings?: {finding_key:string;title:string;severity:string;detail:string;evidence_refs:string[];source:string}[]};
           const expectedKey = finding.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 160) || 'finding-' + i;
-          const existing = existingPayload.finding ? undefined : (existingPayload.findings || []).find(row => row.finding_key === expectedKey);
+          const existing = (existingPayload.findings || []).find(row => row.finding_key === expectedKey);
           if (!existing ||
               existing.title !== finding.title ||
               existing.severity !== finding.severity ||
