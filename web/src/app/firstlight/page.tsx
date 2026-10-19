@@ -2,7 +2,8 @@
 
 import SiteHeader from '../site-header';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getSession, type SatarkSession } from '../../lib/satark-auth';
 import PersistentCasePanel from './persistent-case-panel';
 import { parseCsv, parseIsoTimestamp, toggleSimulatedTamper } from '../../lib/firstlight-import.mjs';
 import { buildFirstlightFindings, getTrustedFirstlightEvidence } from '../../lib/firstlight-investigation.mjs';
@@ -45,6 +46,8 @@ async function digestBytes(bytes: ArrayBuffer) {
   return toHex(await crypto.subtle.digest('SHA-256', bytes));
 }
 export default function FirstlightPage() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [session, setSession] = useState<SatarkSession | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
   const [selected, setSelected] = useState('overview');
@@ -58,6 +61,17 @@ export default function FirstlightPage() {
   const [persistentCaseId, setPersistentCaseId] = useState('');
   const [serverInvestigation, setServerInvestigation] = useState<any>(null);
   const [serverBusy, setServerBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void getSession().then(current => {
+      if (!active) return;
+      if (!current) { window.location.replace('/login'); return; }
+      setSession(current);
+      setAuthChecked(true);
+    }).catch(() => { if (active) window.location.replace('/login'); });
+    return () => { active = false; };
+  }, []);
+
   const trustedEvidence = useMemo(() => getTrustedFirstlightEvidence(evidence), [evidence]);
   const quarantinedEvidenceCount = evidence.length - trustedEvidence.length;
   const timeline = useMemo(() => [...evidence].sort((a,b)=>Date.parse(a.time)-Date.parse(b.time)), [evidence]);
@@ -71,7 +85,7 @@ export default function FirstlightPage() {
       const caseId = persistentCaseId || (importName ? 'FL-IMPORT-' + sourceFileSha256.slice(0, 12) : 'FL-WEB-DEMO-001');
       const response = await fetch('/api/firstlight/investigate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) },
         body: JSON.stringify({
           case_id: caseId,
           title: importName ? 'Imported evidence investigation' : 'Synthetic account-compromise training case',
@@ -204,6 +218,8 @@ export default function FirstlightPage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice('Evidence review JSON exported. This local bundle is not certified forensic preservation.');
   }
+  if (!authChecked || !session) return <div className="shell"><SiteHeader /><main id="main-content" className="container"><p role="status" className="muted">Checking your secure session…</p></main></div>;
+
   return <main className="shell"><SiteHeader />
     <div className="container subpage firstlight-page" id="main-content" tabIndex={-1}>
       <div className="firstlight-hero"><div><div className="eyebrow">SATARK SENTINEL / PRIMARY WORKSPACE</div><h1>FIRSTLIGHT<span className="heading-line">Incident Command.</span></h1><p className="lead">Reconstruct a security incident from evidence, verify integrity, correlate activity, and review response decisions. The training scenario is synthetic; no real accounts or endpoints are changed.</p><div className="actions"><button className="btn btn-primary" disabled={busy} onClick={loadCase}>{busy?'Sealing evidence…':caseOpen && !importName?'Reset training case':caseOpen?'Load synthetic case':'Launch training case ↗'}</button><label className="btn btn-secondary upload-trigger">Import JSON / CSV<input type="file" accept=".json,.csv,application/json,text/csv" disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';void importFile(file);}}/></label></div></div>
