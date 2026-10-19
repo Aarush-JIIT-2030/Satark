@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import PersistentCasePanel from './persistent-case-panel';
 import { parseCsv, parseIsoTimestamp } from '../../lib/firstlight-import.mjs';
 import { buildFirstlightFindings, getTrustedFirstlightEvidence } from '../../lib/firstlight-investigation.mjs';
+// The fallback reads only supplied summaries; it does not inspect the endpoint or file.
 
 type Evidence = { id: string; time: string; source: string; kind: string; summary: string; digest: string; tampered?: boolean };
 type Audit = { time: string; action: string; detail: string };
