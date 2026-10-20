@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { readBoundedJson } from '@/lib/read-bounded-json';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,7 @@ async function authenticate(request: Request, cfg: NonNullable<ReturnType<typeof
       headers: { apikey: cfg.key, Authorization: 'Bearer ' + match[1], Accept: 'application/json' },
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
-    const user: unknown = response.ok ? await response.json() : null;
+    const user: unknown = response.ok ? await readBoundedResponseJson(response) : null;
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) {
       return { token: null, userId: null, error: reply({ error: 'Your session is invalid or expired.' }, 401) };
     }
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
     const response = await supabaseFetch(cfg, auth.token, 'satark_case_notes?' + query);
     if (response.status === 401 || response.status === 403) return reply({ error: 'Workspace access denied.' }, 403);
     if (!response.ok) return reply({ error: 'Case notes are temporarily unavailable.' }, 503);
-    const notes: unknown = await response.json();
+    const notes: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(notes)) return reply({ error: 'Case notes returned an invalid response.' }, 502);
     return reply({ notes });
   } catch { return reply({ error: 'Case notes are temporarily unavailable.' }, 503); }
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return reply({ error: 'Analyst, responder, or owner access to this case is required.' }, 403);
     if (!response.ok) return reply({ error: 'Note could not be saved. Verify case access and retry.' }, 422);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) return reply({ error: 'Note storage returned an invalid response.' }, 502);
     return reply({ note: rows[0] }, 201);
   } catch { return reply({ error: 'Case notes are temporarily unavailable.' }, 503); }
