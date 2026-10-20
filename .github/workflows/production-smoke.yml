@@ -7,17 +7,34 @@ on:
   schedule:
     - cron: "30 3 * * *"
   deployment_status:
+  pull_request:
+    paths:
+      - ".github/workflows/production-smoke.yml"
+      - "web/src/app/page.tsx"
 
 permissions:
   contents: read
 
 concurrency:
-  group: satark-production-smoke
+  group: satark-production-smoke-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
   cancel-in-progress: true
 
 jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+      - name: Validate production smoke marker against homepage source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "Every second matters. Every piece of evidence counts." web/src/app/page.tsx
+          grep -Fq 'check_route "/" "Every second matters\. Every piece of evidence counts\."' .github/workflows/production-smoke.yml
+
   smoke:
-    if: github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production'))
+    if: github.event_name != 'pull_request' && (github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -64,8 +81,14 @@ jobs:
             echo "PASS $route: HTTP 200, expected content and baseline security headers."
           }
 
+          # Regression guard: keep the production marker tied to the source hero heading.
+          if ! grep -Fq "Every second matters. Every piece of evidence counts." web/src/app/page.tsx; then
+            echo "::error::Homepage hero changed; update the production smoke marker and this contract check together."
+            exit 1
+          fi
+
           # Match route-specific body content rather than navigation labels shared by every page.
-          check_route "/" "Pause the panic|Find the signal"
+          check_route "/" "Every second matters\. Every piece of evidence counts\."
           check_route "/investigate" "Suspicious URL or message"
           check_route "/firstlight" "Sign in securely"
           check_route "/reports" "Review notes"
