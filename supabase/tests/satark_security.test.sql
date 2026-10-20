@@ -1,5 +1,5 @@
 begin;
-select plan(43);
+select plan(50);
 
 -- Deterministic fixtures for isolated local Supabase only. The enclosing
 -- transaction rolls back, so no test records survive.
@@ -122,6 +122,11 @@ select ok((
 ), 'approval, case-note, and investigation-job policies use the executable private membership helper');
 select ok(not has_function_privilege('authenticated', 'public.satark_has_membership(uuid,text[])', 'EXECUTE'),
   'the public membership wrapper remains non-executable by authenticated users');
+select ok(not exists (
+  select 1 from pg_policies
+  where schemaname='public' and tablename like 'satark_%'
+    and position('satark_has_membership' in (coalesce(qual,'') || coalesce(with_check,''))) > 0
+), 'no SATARK row-level security policy depends on the revoked public membership wrapper');
 select ok(not has_function_privilege('anon', 'public.satark_reject_audit_mutation()', 'EXECUTE'),
   'anon cannot call the audit trigger function');
 select ok(not has_function_privilege('authenticated', 'public.satark_reject_audit_mutation()', 'EXECUTE'),
@@ -168,6 +173,42 @@ select is((select count(*)::integer from public.satark_approvals
   where tenant_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     and action_key='simulation.policy_test'), 1,
   'an authorized member can read the approval request');
+
+select is((select count(*)::integer from public.satark_case_notes
+  where tenant_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 0,
+  'a tenant member cannot read another tenant case notes');
+select is((select count(*)::integer from public.satark_investigation_jobs
+  where tenant_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 0,
+  'a tenant member cannot read another tenant investigation jobs');
+select is((select count(*)::integer from public.satark_approvals
+  where tenant_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 0,
+  'a tenant member cannot read another tenant approval requests');
+
+select throws_ok(
+  $insert$ insert into public.satark_case_notes (tenant_id,case_id,body,created_by)
+    values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd','Cross-tenant test note',
+      '11111111-1111-4111-8111-111111111111') $insert$,
+  '42501', null, 'a tenant member cannot create a note in another tenant'
+);
+select throws_ok(
+  $insert$ insert into public.satark_investigation_jobs
+    (tenant_id,case_id,requested_by,idempotency_key)
+    values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      '11111111-1111-4111-8111-111111111111','cross-tenant-job-0001') $insert$,
+  '42501', null, 'a tenant member cannot enqueue a job in another tenant'
+);
+select throws_ok(
+  $insert$ insert into public.satark_approvals
+    (tenant_id,case_id,action_key,action_payload,payload_sha256,requested_by)
+    values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd','simulation.cross_tenant_test',
+      '{"mode":"simulation"}'::jsonb,repeat('0',64),
+      '11111111-1111-4111-8111-111111111111') $insert$,
+  '42501', null, 'a tenant member cannot request approval in another tenant'
+);
+
 
 
 select lives_ok(
