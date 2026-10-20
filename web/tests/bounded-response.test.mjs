@@ -68,3 +68,38 @@ test('report retrieval has a bounded response, timeout, UUID validation, and int
   assert.match(source, /integrityMatches\s*\?\s*200\s*:\s*409/);
   assert.doesNotMatch(source, /await\s+response\.(?:text|json)\(\)/);
 });
+
+test('upstream API routes do not parse unbounded JSON responses', async () => {
+  const routes = [
+    'api/audit/verify/route.ts',
+    'api/auth/session/route.ts',
+    'api/cases/notes/route.ts',
+    'api/cases/route.ts',
+    'api/evidence/[id]/verify/route.ts',
+    'api/evidence/records/route.ts',
+    'api/evidence/route.ts',
+    'api/findings/route.ts',
+    'api/firstlight/approvals/route.ts',
+    'api/firstlight/evidence/source/route.ts',
+    'api/firstlight/investigate/route.ts',
+    'api/firstlight/jobs/route.ts',
+    'api/firstlight/wazuh/alerts/route.ts',
+    'api/reports/[id]/route.ts',
+    'api/reports/route.ts',
+  ];
+  for (const route of routes) {
+    const source = await readFile(new URL('../src/app/' + route, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /await\\s+[A-Za-z_$][\\w$]*\\.json\\(\\)/, route + ' must not parse an upstream response without a byte limit');
+    if (/\\bfetch\\s*\\(/.test(source)) {
+      assert.match(source, /readBoundedResponse(?:Json|Text)/, route + ' must use a bounded upstream response reader');
+    }
+  }
+});
+
+test('bounded response JSON helper enforces the shared byte cap before parsing', async () => {
+  const source = await readFile(new URL('../src/lib/read-bounded-response-json.ts', import.meta.url), 'utf8');
+  assert.match(source, /readBoundedResponseText\\(response, maxBytes\\)/);
+  assert.match(source, /maxBytes = 2 \\* 1024 \\* 1024/);
+  assert.match(source, /JSON\\.parse\\(bounded\\.text\\)/);
+  assert.match(source, /bounded\\.reason === 'too_large'/);
+});
