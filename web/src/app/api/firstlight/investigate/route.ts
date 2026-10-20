@@ -12,6 +12,20 @@ function reply(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isInvestigationResponse(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || typeof value.schema_version !== 'string' || typeof value.case_id !== 'string') return false;
+  if (!Array.isArray(value.integrity) || !isRecord(value.integrity_summary)) return false;
+  const summary = value.integrity_summary;
+  if (!['total', 'verified', 'mismatched'].every((key) =>
+    typeof summary[key] === 'number' && Number.isFinite(summary[key]))) return false;
+  if (!isRecord(value.investigation) || !isRecord(value.agent_analysis)) return false;
+  return Array.isArray(value.limitations) && value.limitations.every((item) => typeof item === 'string');
+}
+
 function authConfig() {
   const rawUrl = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -38,7 +52,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
     const bounded = await readBoundedResponseText(response, MAX_AUTH_RESPONSE_BYTES);
     if (!bounded.ok) return false;
     const user: unknown = JSON.parse(bounded.text);
-    return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id);
+    return isRecord(user) && typeof user.id === 'string' && UUID.test(user.id);
   } catch { return false; }
 }
 
@@ -102,7 +116,7 @@ export async function POST(request: Request) {
   } finally {
     reader.releaseLock();
   }
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return reply({ error: 'A JSON object is required.' }, 400);
+  if (!isRecord(input)) return reply({ error: 'A JSON object is required.' }, 400);
 
   try {
     const response = await fetch(config.baseUrl + '/api/v1/cases/investigate', {
@@ -127,15 +141,14 @@ export async function POST(request: Request) {
     }
     let payload: unknown;
     try { payload = JSON.parse(bounded.text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      return reply({ error: 'Investigation service returned an invalid response.' }, 502);
-    }
+    if (!isRecord(payload)) return reply({ error: 'Investigation service returned an invalid response.' }, 502);
     if (!response.ok) {
-      const message = 'detail' in payload && typeof payload.detail === 'string'
+      const message = typeof payload.detail === 'string'
         ? payload.detail
         : 'The shared investigation service could not process this case.';
       return reply({ error: message }, response.status >= 400 && response.status < 500 ? response.status : 503);
     }
+    if (!isInvestigationResponse(payload)) return reply({ error: 'Investigation service returned an invalid response.' }, 502);
     return reply(payload);
   } catch {
     return reply({ error: 'The shared FIRSTLIGHT API is unreachable. Local deterministic findings remain available.' }, 503);
