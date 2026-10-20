@@ -231,7 +231,7 @@ test('tenant creation RPC rejects anonymous calls and invalid tenant names', {
   const anonymous = await fetch(base + '/rest/v1/rpc/satark_create_tenant', {
     method: 'POST',
     headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tenant_name: 'Anonymous SATARK tenant creation probe' }),
+    body: JSON.stringify({ tenant_name: '   ' }),
     cache: 'no-store',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
