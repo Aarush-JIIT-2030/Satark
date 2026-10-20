@@ -23,6 +23,11 @@ test('enforces the streamed byte limit when content-length is absent', async () 
   assert.deepEqual(await readBoundedResponseText(new Response(stream), 4), { ok: false, reason: 'too_large' });
 });
 
+test('does not trust a falsely small content-length header', async () => {
+  const response = new Response('12345', { headers: { 'content-length': '1' } });
+  assert.deepEqual(await readBoundedResponseText(response, 4), { ok: false, reason: 'too_large' });
+});
+
 test('counts UTF-8 bytes rather than JavaScript characters', async () => {
   assert.deepEqual(await readBoundedResponseText(new Response('🛡️'), 6), { ok: false, reason: 'too_large' });
 });
