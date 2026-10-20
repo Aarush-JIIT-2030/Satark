@@ -92,6 +92,75 @@ test('tenant RLS blocks cross-tenant reads and writes for two distinct users', {
   }
 });
 
+test('tenant owners can create, update, and delete cases in their own tenant', {
+  skip: configured ? false : 'Set up two non-admin Supabase test users and separate tenant IDs; missing: ' + missing.join(', '),
+}, async () => {
+  assert.notEqual(env.SATARK_TEST_TENANT_A_ID, env.SATARK_TEST_TENANT_B_ID, 'test tenants must be distinct');
+  const [a, b] = await Promise.all([
+    login(env.SATARK_TEST_USER_A_EMAIL, env.SATARK_TEST_USER_A_PASSWORD),
+    login(env.SATARK_TEST_USER_B_EMAIL, env.SATARK_TEST_USER_B_PASSWORD),
+  ]);
+  assert.notEqual(a.userId, b.userId, 'test users must be distinct');
+
+  for (const [session, tenantId, label] of [
+    [a, env.SATARK_TEST_TENANT_A_ID, 'A'],
+    [b, env.SATARK_TEST_TENANT_B_ID, 'B'],
+  ]) {
+    const title = 'SATARK same-tenant authorized CRUD probe ' + label + ' ' + Date.now();
+    const created = await rest(session, 'satark_cases', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        title,
+        status: 'open',
+        severity: 'unknown',
+        created_by: session.userId,
+        metadata: { test_probe: true },
+      }),
+    });
+    assert.ok([200, 201].includes(created.status), 'tenant owner should be able to create a case in their own tenant');
+    const createdRows = await created.json();
+    assert.equal(createdRows.length, 1, 'same-tenant create should return the created case');
+    const caseId = createdRows[0].id;
+    assert.ok(caseId, 'created case must have an ID');
+
+    const updatedTitle = title + ' updated';
+    const updated = await rest(session, 'satark_cases?' + new URLSearchParams({
+      id: 'eq.' + caseId,
+      tenant_id: 'eq.' + tenantId,
+    }), {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ title: updatedTitle }),
+    });
+    assert.equal(updated.status, 200, 'tenant owner should be able to update a case in their own tenant');
+    const updatedRows = await updated.json();
+    assert.equal(updatedRows.length, 1, 'same-tenant update should return the updated case');
+    assert.equal(updatedRows[0].title, updatedTitle, 'same-tenant update should persist the change');
+
+    const removed = await rest(session, 'satark_cases?' + new URLSearchParams({
+      id: 'eq.' + caseId,
+      tenant_id: 'eq.' + tenantId,
+    }), {
+      method: 'DELETE',
+      headers: { Prefer: 'return=representation' },
+    });
+    assert.ok([200, 204].includes(removed.status), 'tenant owner should be able to delete a case in their own tenant');
+    if (removed.status === 200) {
+      assert.equal((await removed.json()).length, 1, 'same-tenant delete should remove exactly the probe case');
+    }
+
+    const verifyDeleted = await rest(session, 'satark_cases?' + new URLSearchParams({
+      select: 'id',
+      id: 'eq.' + caseId,
+      tenant_id: 'eq.' + tenantId,
+    }));
+    assert.equal(verifyDeleted.status, 200, 'tenant owner should be able to verify their case was deleted');
+    assert.deepEqual(await verifyDeleted.json(), [], 'same-tenant delete should remove the disposable probe case');
+  }
+});
+
 const viewerRequired = [
   'SUPABASE_URL',
   'SUPABASE_PUBLISHABLE_KEY',
