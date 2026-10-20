@@ -166,6 +166,7 @@ test('audit verification RPC permits tenant members and denies cross-tenant acce
   const ownResult = await ownVerification.json();
   assert.ok(Array.isArray(ownResult) && ownResult.length === 1, 'audit verifier should return one result row');
   assert.equal(typeof ownResult[0].chain_valid, 'boolean', 'audit verifier should return a chain validity result');
+  assert.ok(Number(ownResult[0].event_count) > 0, 'Tenant A fixture should produce audit events so verification is not vacuous');
   assert.equal(ownResult[0].chain_valid, true, 'seeded tenant audit chain should verify successfully');
 
   const foreignVerification = await rest(a, 'rpc/satark_verify_audit_chain', {
@@ -184,6 +185,7 @@ test('audit verification RPC permits tenant members and denies cross-tenant acce
   assert.equal(bVerification.status, 200, 'Tenant B member should verify Tenant B audit chain');
   const bResult = await bVerification.json();
   assert.ok(Array.isArray(bResult) && bResult.length === 1, 'Tenant B audit verifier should return one result row');
+  assert.ok(Number(bResult[0].event_count) > 0, 'Tenant B fixture should produce audit events so verification is not vacuous');
   assert.equal(bResult[0].chain_valid, true, 'Tenant B seeded audit chain should verify successfully');
 });
 
