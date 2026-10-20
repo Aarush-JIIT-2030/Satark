@@ -96,3 +96,11 @@ test('tenant-creation RPC preserves authenticated ownership and an invoker-only 
   assert.doesNotMatch(publicWrapper, /security\s+definer/i,
     'exposed tenant creation RPC must not be SECURITY DEFINER');
 });
+
+test('the private RPC implementation schema is not exposed through the local PostgREST API', () => {
+  const config = readFileSync(resolve(repoRoot, 'supabase', 'config.toml'), 'utf8');
+  assert.match(config, /schemas\s*=\s*\[\s*"public"\s*,\s*"graphql_public"\s*\]/i,
+    'only the intended public API schemas should be exposed');
+  assert.doesNotMatch(config, /satark_private/i,
+    'satark_private must remain outside the PostgREST exposed schema list');
+});
