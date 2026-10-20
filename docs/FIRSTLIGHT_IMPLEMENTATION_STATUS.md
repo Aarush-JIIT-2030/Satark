@@ -2,6 +2,16 @@
 
 Last reviewed: 2026-10-20
 
+## Current source and release status (updated after PR #160)
+
+- PR #160, **FIRSTLIGHT: persistent Wazuh ingestion and case investigation workflows**, is merged to `main`. Its latest observed pull-request checks passed: FIRSTLIGHT API CI, general CI, Web CI, CodeQL, and isolated Supabase migration validation.
+- PR #159's SATARK storage-policy helper fix is also merged, and its CI, CodeQL, isolated migration reset, tenant-isolation integration, and browser/accessibility smoke jobs passed on that PR head.
+- Follow-up storage migration history is still being reconciled in draft PRs #161 and #162. Do not run a broad hosted `supabase db push` while the recorded live history and repository migration files disagree; verify the final migration order and repair plan first.
+- The merged code is **not yet a fully verified production deployment**. The latest deployment lookup found a READY preview for branch `feat/firstlight-wazuh-rebased` at commit `a6ad65ea910c40362bb9005febb447893776002f`; it was not a production-target deployment and is not proof that the latest `main` SHA is live.
+- No real Wazuh endpoint/credentials or authorized SATARK tenant/case/member/actor is configured. The worker, durable job queue, and simulation-only approval schema exist in code, but real Wazuh-to-persisted-case-to-investigation-to-report execution, worker hosting/restart recovery, backup restoration, and production smoke verification remain blocked.
+- Keep real response actions disabled. A passing CI suite proves the checked code paths only; it does not establish live-provider, tenant-isolation, operational recovery, or production readiness.
+
+
 This status describes repository-backed behavior, not planned features or unverified live integrations.
 
 ## Current verified release-gate status (2026-10-20)
@@ -10,7 +20,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - The live project currently has zero SATARK tenants, cases, memberships, evidence records, and ingestion checkpoints. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
 - The investigation API now fails closed when `FIRSTLIGHT_API_TOKEN` is missing or shorter than 32 characters. The Next.js proxy requires the strong token even for local HTTP. The worker and authenticated source-download route enforce the bucket's 4 MiB object limit.
 - Added a versioned deterministic rule registry (`firstlight_rules.py`, version `1.0.0`) with stable rule IDs, cautious candidate ATT&CK mappings and rule limitations. Its API container copy and CI path triggers were updated.
-- FIRSTLIGHT API CI and CodeQL passed on the prior fully tested Wazuh-integration head; the broader CI and browser/accessibility smoke also passed there. An isolated database run then exposed a stale contract test that read the live migration-history no-op file instead of the canonical durable-approval schema. The test now targets `202610200001_satark_durable_approvals.sql`; a fresh isolated migration run is required on the current head before merge.
+- The Wazuh integration has since been merged in PR #160 after FIRSTLIGHT API CI, CodeQL, general CI, Web CI, and isolated migration validation passed on that pull-request head. The latest storage-policy migration-history follow-ups remain separately gated by PRs #161 and #162.
 - Vercel deployment status cannot currently be verified through the connected Vercel API (deployment-list access returned 403 and the previously recorded deployment ID was not found). The prior build-rate-limit report remains unresolved. The real Wazuh endpoint/credentials and authorized SATARK tenant/case/actor are not configured; the live SATARK tables currently have zero tenants, memberships, cases, evidence records, checkpoints and approvals, so real end-to-end ingestion remains blocked.
 
 ## Implemented in the prototype
@@ -113,7 +123,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Added mocked worker tests for paging, idempotent persistence behavior, checkpoint advancement/failure handling, and rejection of an unauthorized actor.
 - The API CI workflow now includes connector and worker tests and builds both container images.
 
-**Still not verified:** the worker has not been run against a real Wazuh Indexer; live endpoint enrollment, real tenant isolation, restart recovery and production deployment remain unverified. The migration is applied to the approved shared `nihdhoom` project, not a dedicated database. The Wazuh preview endpoint does not persist data; persistence is done by the separate worker only after its prerequisites are met. Keep the PR unmerged until checks and review pass.
+**Still not verified:** the worker has not been run against a real Wazuh Indexer; live endpoint enrollment, real tenant isolation, restart recovery and production deployment remain unverified. The migration is applied to the approved shared `nihdhoom` project, not a dedicated database. The Wazuh preview endpoint does not persist data; persistence is done by the separate worker only after its prerequisites are met. This connector is merged in PR #160 and its checks passed; live endpoint and credential validation remain a release gate.
 
 
 ## Wazuh UI and persistence follow-up
@@ -123,7 +133,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Updated the persistent case panel and export to preserve evidence metadata and the browser-verifiable digest for worker-ingested Wazuh records.
 - Added a partial unique index to prevent the same Wazuh index/document identity from being inserted twice into one case by the worker and UI paths.
 
-**Still unverified:** no real Wazuh credentials or endpoint were used. The migration has been applied to the approved shared SATARK/Nirdhoom/Saathi Supabase project with SATARK-only changes; a dedicated SATARK database was not created. Latest rule-registry/container CI is pending, Vercel is blocked by its build-rate limit, and end-to-end behavior must be tested with a real authorized lab endpoint and SATARK case before production use.
+**Still unverified:** no real Wazuh credentials or endpoint were used. The migration has been applied to the approved shared SATARK/Nirdhoom/Saathi Supabase project with SATARK-only changes; a dedicated SATARK database was not created. The rule-registry/container changes passed the PR #160 checks, but the available Vercel deployment is a preview for a feature-branch SHA rather than verified production on current main. End-to-end behavior must be tested with a real authorized lab endpoint and SATARK case before production use.
 
 
 ## Durable investigation queue milestone (2026-10-20)
