@@ -71,7 +71,7 @@ Then verify all five index names exist in `pg_indexes`:
 ```sql
 select version, name
 from supabase_migrations.schema_migrations
-where version in ('20261018114039', '202610200004', '20261020042000', '20261020042449', '20261020044018')
+where version in ('20261018114039', '202610200004', '20261020042000', '20261020042449', '20261020044018', '20261020050000', '20261020051000', '20261020052000')
 order by version;
 
 select policyname, cmd, roles, qual, with_check
