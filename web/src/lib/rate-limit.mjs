@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readBoundedResponseText } from './read-bounded-response.mjs';
 
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 8;
@@ -64,7 +65,11 @@ async function sharedLimit(key, config, fetcher) {
       signal: AbortSignal.timeout(2_000),
     });
     if (!response.ok) return { limited: false, unavailable: true, mode: 'shared' };
-    const payload = await response.json();
+    const bounded = await readBoundedResponseText(response, 16 * 1024);
+    if (!bounded.ok) return { limited: false, unavailable: true, mode: 'shared' };
+    let payload;
+    try { payload = JSON.parse(bounded.text); }
+    catch { return { limited: false, unavailable: true, mode: 'shared' }; }
     const result = payload?.result;
     if (!Array.isArray(result) || !Number.isInteger(Number(result[0])) || Number(result[0]) < 1) {
       return { limited: false, unavailable: true, mode: 'shared' };
