@@ -1,5 +1,5 @@
 begin;
-select plan(49);
+select plan(50);
 
 -- Deterministic fixtures for isolated local Supabase only. The enclosing
 -- transaction rolls back, so no test records survive.
@@ -122,6 +122,11 @@ select ok((
 ), 'approval, case-note, and investigation-job policies use the executable private membership helper');
 select ok(not has_function_privilege('authenticated', 'public.satark_has_membership(uuid,text[])', 'EXECUTE'),
   'the public membership wrapper remains non-executable by authenticated users');
+select ok(not exists (
+  select 1 from pg_policies
+  where schemaname='public' and tablename like 'satark_%'
+    and position('satark_has_membership' in (coalesce(qual,'') || coalesce(with_check,''))) > 0
+), 'no SATARK row-level security policy depends on the revoked public membership wrapper');
 select ok(not has_function_privilege('anon', 'public.satark_reject_audit_mutation()', 'EXECUTE'),
   'anon cannot call the audit trigger function');
 select ok(not has_function_privilege('authenticated', 'public.satark_reject_audit_mutation()', 'EXECUTE'),
