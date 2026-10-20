@@ -245,8 +245,8 @@ Model availability depends on the Ollama service, installed local model weights,
 - Python 3.10 or newer
 - Git
 - Dependencies in requirements.txt
-- Ollama installed locally or on a private network, with a text model pulled (for example qwen2.5:3b)
-- Optional vision model (for example qwen2.5vl:3b) for image analysis
+- Ollama is **optional**. Without it, deterministic analysis and FIRSTLIGHT still work; Ollama adds local model suggestions where supported.
+- Optional vision model (for example qwen2.5vl:3b) for image analysis when using Ollama-backed vision features
 - FFmpeg and optional faster-whisper for local video-audio transcription
 
 ### Install
@@ -278,19 +278,25 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 # Optional: install local speech-to-text support for video uploads
 python -m pip install -r requirements-local-ai.txt
-# Install Ollama separately, then download the local text and vision models:
-ollama pull qwen2.5:3b
+# Optional: install Ollama and pull the default local model (see below).
+# Windows PowerShell:
+.\\scripts\\setup-ollama.ps1
+# macOS / Linux:
+bash scripts/setup-ollama.sh
+# Optional extra vision model, after Ollama is running:
 ollama pull qwen2.5vl:3b
 streamlit run satark.py
 ~~~
 
-Streamlit prints the local URL in the terminal. Open that address in your browser. The built-in FIRSTLIGHT scenario and local Ollama analysis run without third-party AI credentials. If Ollama is not installed, deterministic FIRSTLIGHT and fallback checks remain available.
+Streamlit prints the local URL in the terminal. Open that address in your browser. Ollama setup scripts are opt-in: they ask before installing from the official Ollama distribution, start/check the local service, and pull `qwen2.5:3b`. You can skip them entirely. If Ollama is absent or unavailable, deterministic FIRSTLIGHT and local-rule analysis still work without any model download or third-party AI credentials.
 
 ## 11. Local AI and data handling
 
 The Next.js analysis route runs local deterministic rules by default. It does not call Groq, URLhaus, AbuseIPDB, or another third-party analysis API. No third-party AI API key is required.
 
-To use an AI model, run an Ollama instance you control. The Next.js app uses `SATARK_OLLAMA_BASE_URL` and `SATARK_OLLAMA_MODEL`; the Python/Streamlit app uses `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`) and the local model names configured in `ai_provider.py`. The Compose example uses an internal `http://ollama:11434` service address. Initial model downloads need internet access but no API key; inference is local after download.
+To enable optional model suggestions, run an Ollama instance you control. From the repository root, use `scripts/setup-ollama.ps1` in Windows PowerShell or `bash scripts/setup-ollama.sh` on macOS/Linux. The scripts ask permission before installing, use the official Ollama distribution, and pull `qwen2.5:3b` by default. You can choose another model with `SATARK_OLLAMA_MODEL`. The Next.js app uses `SATARK_OLLAMA_BASE_URL` and `SATARK_OLLAMA_MODEL`; the Python/Streamlit app uses `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`) and the model names configured in `ai_provider.py`. The Compose example uses an internal `http://ollama:11434` service address. Initial model downloads need internet access and several GB of disk space, but no AI API key; inference runs locally after download.
+
+**Important hosting boundary:** a browser or server hosted on Vercel cannot reach `127.0.0.1` on a user's laptop. These scripts enable Ollama for SATARK running on the same computer (or a private self-hosted environment configured to reach the Ollama host). On the hosted website, users still get deterministic analysis if no model is configured; installing Ollama on their computer does not automatically connect it to Vercel.
 
 The Python/Streamlit app now uses the same local Ollama approach; the default requirements no longer include the Groq SDK. The self-hosted Compose image includes local faster-whisper for video-audio transcription. No third-party AI API key is required.
 
