@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     form = await new Request(request.url, {
       method: 'POST',
       headers: boundedHeaders,
-      body: boundedBody.bytes,
+      body: Buffer.from(boundedBody.bytes),
     }).formData();
   } catch { return error('A multipart file upload is required.', 400); }
 
