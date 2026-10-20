@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return reply({ error: 'Workspace access denied.' }, 403);
     if (!response.ok) return reply({ error: 'Audit chain could not be verified. Check database migration status and workspace permissions.' }, 503);
-    const data = await response.json();
+    const data = await readBoundedResponseJson(response);
     const result = Array.isArray(data) ? data[0] : data;
     if (!result || typeof result.chain_valid !== 'boolean') return reply({ error: 'Audit verifier returned an invalid response.' }, 502);
     return reply({ tenant_id: tenantId, ...result, verified_at: new Date().toISOString() }, result.chain_valid ? 200 : 409);

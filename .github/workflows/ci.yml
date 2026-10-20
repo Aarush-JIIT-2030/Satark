@@ -213,7 +213,9 @@ jobs:
           if (( ${#missing[@]} )); then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             printf '::warning::Tenant-isolation integration was not run; configure these Actions secrets before release: %s\n' "${missing[*]}"
-            printf 'SKIPPED — tenant-isolation integration. Missing dedicated test credentials: %s. Production release remains blocked until this suite passes.\n' "${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            printf 'BLOCKED — tenant-isolation integration cannot run. Configure dedicated test credentials: %s. This required check must fail closed; production release remains blocked.\n' "${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Required tenant-isolation integration credentials are missing: ${missing[*]}"
+            exit 1
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
