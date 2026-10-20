@@ -97,14 +97,21 @@ begin
   on conflict (id) do nothing;
 end $;
 
-select id, name
-from public.satark_tenants
-where id in (
+select
+  t.id,
+  t.name,
+  (select count(*) from public.satark_memberships m where m.tenant_id = t.id) as memberships,
+  (select count(*) from public.satark_cases c where c.tenant_id = t.id) as cases,
+  (select count(*) from public.satark_case_notes n where n.tenant_id = t.id) as notes,
+  (select count(*) from public.satark_investigation_jobs j where j.tenant_id = t.id) as jobs,
+  (select count(*) from public.satark_approvals a where a.tenant_id = t.id) as approvals
+from public.satark_tenants t
+where t.id in (
   'a1000000-0000-4000-8000-000000000001',
   'b2000000-0000-4000-8000-000000000002',
   'c3000000-0000-4000-8000-000000000003'
 )
-order by id;
+order by t.id;
 ```
 
 Confirm that exactly the three intended tenants are returned and that each has its intended owner/viewer membership, case, note, queued job, and pending simulation-only approval. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
