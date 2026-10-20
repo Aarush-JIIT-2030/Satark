@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(26);
 
 -- Local-only fixtures. This test runs in the isolated Supabase migration
 -- validation job and rolls back all Auth users, tenants, memberships, and audit events.
@@ -45,6 +45,50 @@ select ok((
   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='satark_private' and p.proname='verify_audit_chain'
 ), 'the private audit verifier is SECURITY DEFINER with an empty fixed search_path');
+
+
+select ok(not (
+  select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='satark_decide_approval'
+), 'the exposed approval-decision RPC is SECURITY INVOKER');
+select ok(not (
+  select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='satark_authorize_response_action'
+), 'the exposed approval-authorization RPC is SECURITY INVOKER');
+select ok(not (
+  select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='satark_consume_response_approval'
+), 'the exposed approval-consumption RPC is SECURITY INVOKER');
+select ok(not (
+  select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='satark_list_assignable_members'
+), 'the exposed assignable-member RPC is SECURITY INVOKER');
+select ok((
+  select count(*)=4
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='satark_private'
+    and p.proname in ('decide_approval','authorize_response_action','consume_response_approval','list_assignable_members')
+    and p.prosecdef
+    and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=""%'
+), 'all four private approval implementations are SECURITY DEFINER with a fixed empty search_path');
+select ok(
+  not has_function_privilege('anon','satark_private.decide_approval(uuid,text,text)','EXECUTE')
+  and not has_function_privilege('anon','satark_private.authorize_response_action(uuid,uuid,uuid,text,text)','EXECUTE')
+  and not has_function_privilege('anon','satark_private.consume_response_approval(uuid,uuid,uuid,text,text)','EXECUTE')
+  and not has_function_privilege('anon','satark_private.list_assignable_members(uuid)','EXECUTE'),
+  'anonymous callers cannot execute private approval implementations');
+select ok(
+  has_function_privilege('authenticated','public.satark_decide_approval(uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','public.satark_authorize_response_action(uuid,uuid,uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','public.satark_consume_response_approval(uuid,uuid,uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','public.satark_list_assignable_members(uuid)','EXECUTE'),
+  'authenticated callers retain access to the four public RPC wrappers');
+select ok(
+  has_function_privilege('authenticated','satark_private.decide_approval(uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','satark_private.authorize_response_action(uuid,uuid,uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','satark_private.consume_response_approval(uuid,uuid,uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','satark_private.list_assignable_members(uuid)','EXECUTE'),
+  'public wrappers can invoke the permissioned private implementations');
 
 select ok(not has_function_privilege('anon', 'public.satark_create_tenant(text)', 'EXECUTE'),
   'anonymous callers cannot execute the tenant-creation wrapper');
