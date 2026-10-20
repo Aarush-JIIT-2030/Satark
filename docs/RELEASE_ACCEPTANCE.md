@@ -3,23 +3,21 @@
 ## Candidate
 
 - Repository: `kaustubhdua/Satark`
-- Candidate branch at the time of this record: `main`
-- Candidate commit at the time of this record: `pending-merge`
-- Source pull request: https://github.com/kaustubhdua/Satark/pull/45
+- Candidate branch: `main`
+- Source baseline at this review: `7f426fe793ab78375094111b7fed8462e669e018` (PR #174, SATARK membership-policy repair). Re-check the SHA after any later merge before release.
+- Source pull request: https://github.com/kaustubhdua/Satark/pull/174
 - Decision: **NO-GO for production until the outstanding checks below are evidenced.**
 
-This record distinguishes automated CI evidence from checks that still require a live deployment and authorized provider credentials. It must be updated with a new commit SHA if the candidate changes.
+This record distinguishes automated CI evidence from checks that still require a live deployment and authorized provider credentials. A passing CI run is not a production acceptance.
 
 ## Automated checks recorded
 
-For candidate `5abb923aefb749ccf04be87ddc047e91a1390d46`:
+- PR #174 head `0c607a1004f5a2b9811146b1e195be5a3a78cdd9`: general CI, CodeQL, isolated Supabase migration validation, web validation, and production browser/accessibility smoke passed. The pgTAP suite covers authenticated reads/writes for the six policies being rebound.
+- PR #173 head `130670e01087d8663427a85c5bbb37eb4b78f4e4`: FIRSTLIGHT API CI, CodeQL, web validation, and production browser/accessibility smoke passed for empty-window checkpoint advancement.
+- The workflow named `Supabase tenant-isolation integration` reported a successful job, but its live least-privilege-account test step was skipped because dedicated test credentials were unavailable. Do not treat that skipped step as evidence of live tenant-isolation success.
+- Current source baseline `7f426fe793ab78375094111b7fed8462e669e018` still has a failing Vercel deployment status due to the account's deployment quota. The latest production deployment SHA is older than this baseline.
 
-- Python CI: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230216
-- Web CI: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230215
-- CodeQL: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230200
-- Python browser-smoke artifact: `satark-browser-smoke`, artifact ID `11707622682`.
-
-These results establish that the listed workflows passed on that commit. They do not establish live provider credentials work or that all journeys have been manually accepted in production.
+These results establish that the listed workflows passed on their exact PR heads. They do not establish that live provider credentials work or that the full production workflow has been accepted.
 
 ## Real functionality versus simulated/demo behavior
 
@@ -87,9 +85,9 @@ Use only authorized, non-sensitive test inputs. Never paste private, signed, cus
 
 ## Deployment blocker observed
 
-The Vercel deployment API returned `402 payment_required` with resource `api-deployments-free-per-day` and `retryAfter=86400`. The latest confirmed ready preview was commit `a794e6e9eca1b445ad93c07e90e278ff6f732a82`, not this candidate. Production was still on `0c90f1aef80c2ec405192deef027707ba0313979` at the time of verification.
+On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours; retry window 24 hours). The connected Vercel API has also returned HTTP 403 for deployment permission/inspection. The latest known READY production deployment source SHA is `08983cd9c88b1cab91ea800577b2ddc291549250`, older than current main. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must resolve the quota/permission, then deploy and verify the exact approved SHA.
 
-The browser automation provider reported a negative remaining credit balance (`-992`), so interactive live-browser acceptance could not be completed through that service. These are environment/account blockers, not passing tests.
+These are environment/account blockers, not passing tests.
 
 ## Go/no-go
 
