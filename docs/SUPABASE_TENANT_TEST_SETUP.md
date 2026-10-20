@@ -15,7 +15,7 @@ This is an **isolated test-project setup**, not a production migration. It provi
 
 ## 2. Seed disposable tenant fixtures
 
-Open the **SQL Editor of the dedicated test project only**. Replace the three email placeholders below with the exact test-user email addresses created in step 1, then run the script. It creates three tenant memberships and one disposable case per tenant. It does not create or change Auth users or passwords.
+Open the **SQL Editor of the dedicated test project only**. Replace the three email placeholders below with the exact test-user email addresses created in step 1, then run the script. It creates three tenant memberships, one disposable case per tenant, and linked note, investigation-job, and simulation-only approval fixtures so RLS checks cover the full tenant-scoped resource set. It does not create or change Auth users or passwords.
 
 ```sql
 do $$
@@ -29,6 +29,15 @@ declare
   case_a constant uuid := 'a1000000-0000-4000-8000-000000000011';
   case_b constant uuid := 'b2000000-0000-4000-8000-000000000022';
   case_viewer constant uuid := 'c3000000-0000-4000-8000-000000000033';
+  note_a constant uuid := 'a1000000-0000-4000-8000-000000000012';
+  note_b constant uuid := 'b2000000-0000-4000-8000-000000000023';
+  note_viewer constant uuid := 'c3000000-0000-4000-8000-000000000034';
+  job_a constant uuid := 'a1000000-0000-4000-8000-000000000013';
+  job_b constant uuid := 'b2000000-0000-4000-8000-000000000024';
+  job_viewer constant uuid := 'c3000000-0000-4000-8000-000000000035';
+  approval_a constant uuid := 'a1000000-0000-4000-8000-000000000014';
+  approval_b constant uuid := 'b2000000-0000-4000-8000-000000000025';
+  approval_viewer constant uuid := 'c3000000-0000-4000-8000-000000000036';
 begin
   select id into strict user_a from auth.users
     where lower(email) = lower('REPLACE_WITH_TENANT_A_EMAIL');
@@ -64,7 +73,29 @@ begin
     severity = 'low',
     created_by = excluded.created_by,
     metadata = '{"test_fixture":true}'::jsonb;
-end $$;
+
+  insert into public.satark_case_notes(id, tenant_id, case_id, body, created_by) values
+    (note_a, tenant_a, case_a, 'Disposable CI note A', user_a),
+    (note_b, tenant_b, case_b, 'Disposable CI note B', user_b),
+    (note_viewer, tenant_viewer, case_viewer, 'Disposable viewer CI note', user_viewer)
+  on conflict (id) do nothing;
+
+  insert into public.satark_investigation_jobs(
+    id, tenant_id, case_id, requested_by, idempotency_key, status, attempts, max_attempts
+  ) values
+    (job_a, tenant_a, case_a, user_a, 'ci-fixture-a-001', 'queued', 0, 3),
+    (job_b, tenant_b, case_b, user_b, 'ci-fixture-b-001', 'queued', 0, 3),
+    (job_viewer, tenant_viewer, case_viewer, user_viewer, 'ci-fixture-viewer-001', 'queued', 0, 3)
+  on conflict (id) do nothing;
+
+  insert into public.satark_approvals(
+    id, tenant_id, case_id, action_key, action_payload, payload_sha256, status, requested_by
+  ) values
+    (approval_a, tenant_a, case_a, 'simulation.tenant_isolation_probe', '{"mode":"simulation","test_fixture":true}'::jsonb, repeat('a', 64), 'pending', user_a),
+    (approval_b, tenant_b, case_b, 'simulation.tenant_isolation_probe', '{"mode":"simulation","test_fixture":true}'::jsonb, repeat('b', 64), 'pending', user_b),
+    (approval_viewer, tenant_viewer, case_viewer, 'simulation.tenant_isolation_probe', '{"mode":"simulation","test_fixture":true}'::jsonb, repeat('c', 64), 'pending', user_viewer)
+  on conflict (id) do nothing;
+end $;
 
 select id, name
 from public.satark_tenants
@@ -76,7 +107,7 @@ where id in (
 order by id;
 ```
 
-Confirm that exactly the three intended tenants are returned and that each has only its intended test membership and case. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
+Confirm that exactly the three intended tenants are returned and that each has its intended owner/viewer membership, case, note, queued job, and pending simulation-only approval. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
 
 ## 3. Configure GitHub Actions secrets
 
@@ -108,4 +139,4 @@ The integration test intentionally fails when any required fixture is missing. T
 
 ## Cleanup
 
-After the tests are no longer needed, remove the three test users from the dedicated test project's Auth dashboard and remove the fixture tenants/cases there if desired. Never clean up by running broad deletes on the shared production project.
+After the tests are no longer needed, remove the three test users from the dedicated test project's Auth dashboard and remove the fixture tenants and all associated SATARK test records there if desired. Never clean up by running broad deletes on the shared production project.
