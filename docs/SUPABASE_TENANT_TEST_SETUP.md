@@ -141,6 +141,7 @@ select
   (select count(*) from public.satark_evidence e where e.tenant_id = t.id) as evidence,
   (select count(*) from public.satark_findings f where f.tenant_id = t.id) as findings,
   (select count(*) from public.satark_reports r where r.tenant_id = t.id) as reports,
+  (select count(*) from public.satark_audit_events e where e.tenant_id = t.id) as audit_events,
   (select count(*) from public.satark_case_notes n where n.tenant_id = t.id) as notes,
   (select count(*) from public.satark_investigation_jobs j where j.tenant_id = t.id) as jobs,
   (select count(*) from public.satark_approvals a where a.tenant_id = t.id) as approvals
@@ -153,7 +154,7 @@ where t.id in (
 order by t.id;
 ```
 
-Confirm exactly three tenant rows are returned and each row reports `memberships = 1`, `cases = 1`, `evidence = 1`, `findings = 1`, `reports = 1`, `notes = 1`, `jobs = 1`, and `approvals = 1`. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
+Confirm exactly three tenant rows are returned and each row reports `memberships = 1`, `cases = 1`, `evidence = 1`, `findings = 1`, `reports = 1`, `notes = 1`, `jobs = 1`, and `approvals = 1`, with `audit_events > 0`. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
 
 ## 3. Configure GitHub Actions secrets
 
