@@ -223,6 +223,115 @@ test('audit verification RPC permits tenant members and denies cross-tenant acce
   assert.equal(bResult[0].chain_valid, true, 'Tenant B seeded audit chain should verify successfully');
 });
 
+test('approval and assignable-member RPCs enforce tenant roles and fail closed', {
+  skip: configured ? false : 'Set up two non-admin Supabase test users and a viewer; missing: ' + missing.join(', '),
+}, async () => {
+  const [a, b, viewer] = await Promise.all([
+    login(env.SATARK_TEST_USER_A_EMAIL, env.SATARK_TEST_USER_A_PASSWORD),
+    login(env.SATARK_TEST_USER_B_EMAIL, env.SATARK_TEST_USER_B_PASSWORD),
+    login(env.SATARK_TEST_VIEWER_EMAIL, env.SATARK_TEST_VIEWER_PASSWORD),
+  ]);
+
+  const assignable = await rest(a, 'rpc/satark_list_assignable_members', {
+    method: 'POST',
+    body: JSON.stringify({ p_tenant_id: env.SATARK_TEST_TENANT_A_ID }),
+  });
+  assert.equal(assignable.status, 200, 'tenant owner should be able to enumerate assignable members in their tenant');
+  const assignableRows = await assignable.json();
+  assert.ok(assignableRows.some(row => row.user_id === a.userId && row.role === 'owner'),
+    'assignable-member RPC should include the authenticated tenant owner');
+
+  const foreignAssignable = await rest(a, 'rpc/satark_list_assignable_members', {
+    method: 'POST',
+    body: JSON.stringify({ p_tenant_id: env.SATARK_TEST_TENANT_B_ID }),
+  });
+  assert.ok([401, 403].includes(foreignAssignable.status),
+    'assignable-member RPC must deny cross-tenant enumeration');
+
+  const viewerAssignable = await rest(viewer, 'rpc/satark_list_assignable_members', {
+    method: 'POST',
+    body: JSON.stringify({ p_tenant_id: env.SATARK_TEST_VIEWER_TENANT_ID }),
+  });
+  assert.ok([401, 403].includes(viewerAssignable.status),
+    'viewer must not enumerate assignable tenant members');
+
+  async function pendingApproval(session, tenantId) {
+    const response = await rest(session, 'satark_approvals?' + new URLSearchParams({
+      select: 'id,tenant_id,case_id,action_key,payload_sha256,status,requested_by',
+      tenant_id: 'eq.' + tenantId,
+      status: 'eq.pending',
+      limit: '1',
+    }));
+    assert.equal(response.status, 200, 'tenant owner should be able to read their pending approval fixture');
+    const rows = await response.json();
+    assert.ok(rows.length > 0, 'each owner tenant must have a pending simulation approval fixture');
+    return rows[0];
+  }
+
+  const [approvalA, approvalB] = await Promise.all([
+    pendingApproval(a, env.SATARK_TEST_TENANT_A_ID),
+    pendingApproval(b, env.SATARK_TEST_TENANT_B_ID),
+  ]);
+
+  const authorizationArgs = approval => ({
+    p_approval_id: approval.id,
+    p_tenant_id: approval.tenant_id,
+    p_case_id: approval.case_id,
+    p_action_key: approval.action_key,
+    p_payload_sha256: approval.payload_sha256,
+  });
+  const pendingAuthorization = await rest(a, 'rpc/satark_authorize_response_action', {
+    method: 'POST',
+    body: JSON.stringify(authorizationArgs(approvalA)),
+  });
+  assert.equal(pendingAuthorization.status, 200, 'member authorization check should return a boolean for a pending approval');
+  assert.equal(await pendingAuthorization.json(), false, 'pending approvals must never authorize a response action');
+
+  const foreignAuthorization = await rest(a, 'rpc/satark_authorize_response_action', {
+    method: 'POST',
+    body: JSON.stringify(authorizationArgs(approvalB)),
+  });
+  assert.equal(foreignAuthorization.status, 200, 'authorization check should fail closed for a foreign approval');
+  assert.equal(await foreignAuthorization.json(), false, 'a tenant member must not authorize another tenant approval');
+
+  const consumePending = await rest(a, 'rpc/satark_consume_response_approval', {
+    method: 'POST',
+    body: JSON.stringify(authorizationArgs(approvalA)),
+  });
+  assert.equal(consumePending.status, 200, 'consume endpoint should return a boolean for an ineligible approval');
+  assert.equal(await consumePending.json(), false, 'a pending approval must not be consumed');
+
+  const selfDecision = await rest(a, 'rpc/satark_decide_approval', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_approval_id: approvalA.id,
+      p_decision: 'approved',
+      p_reason: 'self-approval must be rejected by the security gate',
+    }),
+  });
+  assert.ok([400, 403].includes(selfDecision.status), 'requester must not approve their own request');
+
+  const foreignDecision = await rest(a, 'rpc/satark_decide_approval', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_approval_id: approvalB.id,
+      p_decision: 'approved',
+      p_reason: 'cross-tenant approval must be rejected',
+    }),
+  });
+  assert.ok([400, 403].includes(foreignDecision.status), 'tenant member must not decide another tenant approval');
+
+  const verifyPending = await rest(a, 'satark_approvals?' + new URLSearchParams({
+    select: 'id,status',
+    id: 'eq.' + approvalA.id,
+    tenant_id: 'eq.' + env.SATARK_TEST_TENANT_A_ID,
+  }));
+  assert.equal(verifyPending.status, 200, 'owner should be able to verify rejected approval transitions');
+  const unchangedApproval = await verifyPending.json();
+  assert.equal(unchangedApproval.length, 1, 'rejected approval transitions must not delete the request');
+  assert.equal(unchangedApproval[0].status, 'pending', 'rejected approval transitions must leave the request pending');
+});
+
 test('tenant creation RPC rejects anonymous calls and invalid tenant names', {
   skip: configured ? false : 'Set up a dedicated non-admin Supabase test user; missing: ' + missing.join(', '),
 }, async () => {
