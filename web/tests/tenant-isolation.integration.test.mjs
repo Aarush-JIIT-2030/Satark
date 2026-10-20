@@ -53,7 +53,41 @@ test('tenant RLS blocks cross-tenant reads and writes for two distinct users', {
   ]);
   assert.notEqual(a.userId, b.userId, 'test users must be distinct');
 
-  for (const [session, foreignTenant] of [[a, env.SATARK_TEST_TENANT_B_ID], [b, env.SATARK_TEST_TENANT_A_ID]]) {
+  for (const [session, ownTenant, foreignTenant] of [
+    [a, env.SATARK_TEST_TENANT_A_ID, env.SATARK_TEST_TENANT_B_ID],
+    [b, env.SATARK_TEST_TENANT_B_ID, env.SATARK_TEST_TENANT_A_ID],
+  ]) {
+    const ownTenantRead = await rest(session, 'satark_tenants?' + new URLSearchParams({
+      select: 'id,name',
+      id: 'eq.' + ownTenant,
+    }));
+    assert.equal(ownTenantRead.status, 200, 'tenant member should be able to read their own tenant');
+    const ownTenants = await ownTenantRead.json();
+    assert.equal(ownTenants.length, 1, 'tenant member should see exactly their own tenant fixture');
+
+    const ownMembershipRead = await rest(session, 'satark_memberships?' + new URLSearchParams({
+      select: 'tenant_id,user_id,role',
+      tenant_id: 'eq.' + ownTenant,
+    }));
+    assert.equal(ownMembershipRead.status, 200, 'tenant owner should be able to read own tenant memberships');
+    const ownMemberships = await ownMembershipRead.json();
+    assert.ok(ownMemberships.some(row => row.user_id === session.userId && row.role === 'owner'),
+      'owner should see their own membership in the tenant');
+
+    const foreignTenantRead = await rest(session, 'satark_tenants?' + new URLSearchParams({
+      select: 'id',
+      id: 'eq.' + foreignTenant,
+    }));
+    assert.equal(foreignTenantRead.status, 200, 'foreign tenant reads should be safely filtered by RLS');
+    assert.deepEqual(await foreignTenantRead.json(), [], 'a user must not read another tenant row');
+
+    const foreignMembershipRead = await rest(session, 'satark_memberships?' + new URLSearchParams({
+      select: 'tenant_id,user_id,role',
+      tenant_id: 'eq.' + foreignTenant,
+    }));
+    assert.equal(foreignMembershipRead.status, 200, 'foreign membership reads should be safely filtered by RLS');
+    assert.deepEqual(await foreignMembershipRead.json(), [], 'a user must not enumerate another tenant memberships');
+
     const query = new URLSearchParams({ select: 'id,tenant_id,title', tenant_id: 'eq.' + foreignTenant, limit: '20' });
     const read = await rest(session, 'satark_cases?' + query);
     assert.equal(read.status, 200, 'RLS should return an empty list instead of leaking foreign rows');
