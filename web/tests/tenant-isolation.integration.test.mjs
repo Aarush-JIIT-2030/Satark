@@ -323,7 +323,7 @@ test('viewer role cannot create or update cases', {
   assert.equal(unchangedViewerRows[0].status, 'open', 'viewer write probe must not change the case status');
 });
 
-test('cross-tenant evidence, findings, reports, case updates and deletes are denied', {
+test('cross-tenant mutations are denied across all tenant-scoped resources', {
   skip: configured ? false : 'Set up two non-admin Supabase test users and separate tenant IDs; missing: ' + missing.join(', '),
 }, async () => {
   assert.notEqual(env.SATARK_TEST_TENANT_A_ID, env.SATARK_TEST_TENANT_B_ID, 'test tenants must be distinct');
