@@ -24,7 +24,8 @@ test('bootstrap scripts use the official Ollama distribution and default to a mo
     readFile(new URL('scripts/setup-ollama.sh', root), 'utf8'),
     readFile(new URL('scripts/setup-ollama.ps1', root), 'utf8'),
   ]);
-  assert.match(unix, /https:\/\/ollama\.com\/install\.sh/);
+  assert.match(unix, /OLLAMA_URL="https:\/\/ollama\.com"/);
+  assert.match(unix, /"\$OLLAMA_URL\/install\.sh"/);
   assert.match(unix, /SATARK_OLLAMA_MODEL:-qwen2\.5:3b/);
   assert.match(windows, /Ollama\.Ollama/);
   assert.match(windows, /qwen2\.5:3b/);
