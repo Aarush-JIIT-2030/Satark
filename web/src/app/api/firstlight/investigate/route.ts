@@ -5,6 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_AUTH_RESPONSE_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(body: unknown, status = 200) {
@@ -34,7 +35,9 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) return false;
-    const user: unknown = await response.json();
+    const bounded = await readBoundedResponseText(response, MAX_AUTH_RESPONSE_BYTES);
+    if (!bounded.ok) return false;
+    const user: unknown = JSON.parse(bounded.text);
     return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id);
   } catch { return false; }
 }
