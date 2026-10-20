@@ -16,7 +16,7 @@ This record distinguishes automated CI evidence from checks that still require a
 - PR #173 head `130670e01087d8663427a85c5bbb37eb4b78f4e4`: FIRSTLIGHT API CI, CodeQL, web validation, and production browser/accessibility smoke passed for empty-window checkpoint advancement.
 - The workflow named `Supabase tenant-isolation integration` reported a successful job, but its live least-privilege-account test step was skipped because dedicated test credentials were unavailable. Do not treat that skipped step as evidence of live tenant-isolation success.
 - PR #177's 50-assertion pgTAP security suite and PR #178's policy-contract tests passed isolated migration validation. PR #180's FIRSTLIGHT API CI passed for the worker membership-revalidation change.
-- The FIRSTLIGHT API CI passed on code baseline `1acf9e1392f3d0110f01cf1a2eed7a4a70946894`. Main CI and CodeQL were queued for current `main` `ac602e537c4571e7c56a828c4b3038905140a883` after the docs-only merge. Vercel's latest READY production deployment is still at SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07` (main after PR #177), older than the worker fix and production-smoke contract.
+- The FIRSTLIGHT API CI passed on code baseline `1acf9e1392f3d0110f01cf1a2eed7a4a70946894`. PR #182's docs-only CI and CodeQL passed; a main-branch CI run was cancelled during successive docs-only merges, so use the exact current main SHA and require a fresh successful check before release. Vercel's latest READY production deployment is at SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07` (main after PR #177), older than the worker fix and production-smoke contract. Production smoke run `39375823346` failed because the live `/` response lacked the expected homepage marker.
 
 These results establish that the listed workflows passed on their exact PR heads. They do not establish that live provider credentials work or that the full production workflow has been accepted.
 
@@ -55,7 +55,7 @@ These results establish that the listed workflows passed on their exact PR heads
 
 Use only authorized, non-sensitive test inputs. Never paste private, signed, customer, or credential-bearing URLs into a third-party reputation provider.
 
-- [ ] Groq: one benign synthetic message; validate schema, timeout, 401/403, 429, and 5xx behavior.
+- [ ] Optional local Ollama: run one benign synthetic event with model assistance enabled; validate schema rejection, timeout, unavailable-model behavior, and safe fallback. Confirm deterministic findings still work with model agents disabled; do not add a hosted AI API-key dependency.
 - [ ] URLhaus: explicitly opted-in known test URL or safe provider-documented test fixture; verify no-match and provider unavailable behavior. Confirm the disclosure is visible before sharing.
 - [ ] AbuseIPDB: explicitly opted-in public test IP approved for this purpose; verify no-match, provider unavailable, and malformed response behavior.
 - [ ] Offline/unconfigured: confirm the UI/API reports unavailable clearly and does not imply successful verification.
@@ -86,7 +86,7 @@ Use only authorized, non-sensitive test inputs. Never paste private, signed, cus
 
 ## Deployment blocker observed
 
-On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours). The direct Vercel deployment API also returned HTTP 403. The latest READY production deployment is `dpl_4HRahKGhrAGeEKQdqB2AhRcH4GUJ` at source SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07`, aliased as `satark-rose.vercel.app` and `satark-jyc-website.vercel.app`; it predates the worker fix and smoke-contract changes. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must clear the quota through the authorized account path, then deploy and verify current main `ac602e537c4571e7c56a828c4b3038905140a883`.
+On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours). The direct Vercel deployment API also returned HTTP 403. The latest READY production deployment is `dpl_4HRahKGhrAGeEKQdqB2AhRcH4GUJ` at source SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07`, aliased as `satark-rose.vercel.app` and `satark-jyc-website.vercel.app`; it predates the worker fix and smoke-contract changes. Production smoke run `39375823346` also failed because the live homepage did not contain the expected marker. The project also has SSO protection enabled for all non-custom domains and no configured public custom domain; the smoke failure may be a protection/login response. Do not disable SSO globally. The owner must provide an approved public custom domain or a scoped Vercel protection-bypass secret for CI. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must clear the quota through the authorized account path, then deploy the exact current main SHA obtained from `git rev-parse origin/main` and verify it through `/api/version` and the Vercel deployment metadata.
 
 These are environment/account blockers, not passing tests.
 
