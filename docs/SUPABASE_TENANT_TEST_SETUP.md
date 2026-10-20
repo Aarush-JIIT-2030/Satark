@@ -15,7 +15,7 @@ This is an **isolated test-project setup**, not a production migration. It provi
 
 ## 2. Seed disposable tenant fixtures
 
-Open the **SQL Editor of the dedicated test project only**. Replace the three email placeholders below with the exact test-user email addresses created in step 1, then run the script. It creates three tenant memberships, one disposable case per tenant, and linked note, investigation-job, and simulation-only approval fixtures so RLS checks cover the full tenant-scoped resource set. It does not create or change Auth users or passwords.
+Open the **SQL Editor of the dedicated test project only**. Replace the three email placeholders below with the exact test-user email addresses created in step 1, then run the script. It creates three tenant memberships, one disposable case per tenant, and linked evidence, finding, report, note, investigation-job, and simulation-only approval fixtures so cross-tenant reads have real rows to protect. It does not create or change Auth users or passwords.
 
 ```sql
 do $$
@@ -38,6 +38,15 @@ declare
   approval_a constant uuid := 'a1000000-0000-4000-8000-000000000014';
   approval_b constant uuid := 'b2000000-0000-4000-8000-000000000025';
   approval_viewer constant uuid := 'c3000000-0000-4000-8000-000000000036';
+  evidence_a constant uuid := 'a1000000-0000-4000-8000-000000000015';
+  evidence_b constant uuid := 'b2000000-0000-4000-8000-000000000026';
+  evidence_viewer constant uuid := 'c3000000-0000-4000-8000-000000000037';
+  finding_a constant uuid := 'a1000000-0000-4000-8000-000000000016';
+  finding_b constant uuid := 'b2000000-0000-4000-8000-000000000027';
+  finding_viewer constant uuid := 'c3000000-0000-4000-8000-000000000038';
+  report_a constant uuid := 'a1000000-0000-4000-8000-000000000017';
+  report_b constant uuid := 'b2000000-0000-4000-8000-000000000028';
+  report_viewer constant uuid := 'c3000000-0000-4000-8000-000000000039';
 begin
   select id into strict user_a from auth.users
     where lower(email) = lower('REPLACE_WITH_TENANT_A_EMAIL');
@@ -95,13 +104,43 @@ begin
     (approval_b, tenant_b, case_b, 'simulation.tenant_isolation_probe', '{"mode":"simulation","test_fixture":true}'::jsonb, repeat('b', 64), 'pending', user_b),
     (approval_viewer, tenant_viewer, case_viewer, 'simulation.tenant_isolation_probe', '{"mode":"simulation","test_fixture":true}'::jsonb, repeat('c', 64), 'pending', user_viewer)
   on conflict (id) do nothing;
-end $;
+
+  insert into public.satark_evidence(
+    id, tenant_id, case_id, source_label, event_kind, observed_at, summary,
+    source_sha256, record_sha256, metadata, created_by
+  ) values
+    (evidence_a, tenant_a, case_a, 'CI fixture', 'test', now(), 'Disposable CI evidence A', null, repeat('1', 64), '{"test_fixture":true}'::jsonb, user_a),
+    (evidence_b, tenant_b, case_b, 'CI fixture', 'test', now(), 'Disposable CI evidence B', null, repeat('2', 64), '{"test_fixture":true}'::jsonb, user_b),
+    (evidence_viewer, tenant_viewer, case_viewer, 'CI fixture', 'test', now(), 'Disposable viewer CI evidence', null, repeat('3', 64), '{"test_fixture":true}'::jsonb, user_viewer)
+  on conflict (id) do nothing;
+
+  insert into public.satark_findings(
+    id, tenant_id, case_id, finding_key, title, severity, detail,
+    evidence_refs, source, confidence, created_by
+  ) values
+    (finding_a, tenant_a, case_a, 'ci-fixture-a', 'Disposable CI finding A', 'unknown', 'Test-only finding A', '[]'::jsonb, 'CI fixture', null, user_a),
+    (finding_b, tenant_b, case_b, 'ci-fixture-b', 'Disposable CI finding B', 'unknown', 'Test-only finding B', '[]'::jsonb, 'CI fixture', null, user_b),
+    (finding_viewer, tenant_viewer, case_viewer, 'ci-fixture-viewer', 'Disposable viewer CI finding', 'unknown', 'Test-only viewer finding', '[]'::jsonb, 'CI fixture', null, user_viewer)
+  on conflict (id) do nothing;
+
+  insert into public.satark_reports(
+    id, tenant_id, case_id, title, report_version, snapshot, snapshot_sha256, created_by
+  ) values
+    (report_a, tenant_a, case_a, 'Disposable CI report A', 1, '{"test_fixture":true}'::jsonb, repeat('d', 64), user_a),
+    (report_b, tenant_b, case_b, 'Disposable CI report B', 1, '{"test_fixture":true}'::jsonb, repeat('e', 64), user_b),
+    (report_viewer, tenant_viewer, case_viewer, 'Disposable viewer CI report', 1, '{"test_fixture":true}'::jsonb, repeat('f', 64), user_viewer)
+  on conflict (id) do nothing;
+
+end $$;
 
 select
   t.id,
   t.name,
   (select count(*) from public.satark_memberships m where m.tenant_id = t.id) as memberships,
   (select count(*) from public.satark_cases c where c.tenant_id = t.id) as cases,
+  (select count(*) from public.satark_evidence e where e.tenant_id = t.id) as evidence,
+  (select count(*) from public.satark_findings f where f.tenant_id = t.id) as findings,
+  (select count(*) from public.satark_reports r where r.tenant_id = t.id) as reports,
   (select count(*) from public.satark_case_notes n where n.tenant_id = t.id) as notes,
   (select count(*) from public.satark_investigation_jobs j where j.tenant_id = t.id) as jobs,
   (select count(*) from public.satark_approvals a where a.tenant_id = t.id) as approvals
@@ -114,7 +153,7 @@ where t.id in (
 order by t.id;
 ```
 
-Confirm exactly three tenant rows are returned and each row reports `memberships = 1`, `cases = 1`, `notes = 1`, `jobs = 1`, and `approvals = 1`. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
+Confirm exactly three tenant rows are returned and each row reports `memberships = 1`, `cases = 1`, `evidence = 1`, `findings = 1`, `reports = 1`, `notes = 1`, `jobs = 1`, and `approvals = 1`. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
 
 ## 3. Configure GitHub Actions secrets
 
