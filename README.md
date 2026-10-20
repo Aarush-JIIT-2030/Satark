@@ -19,7 +19,7 @@ SATARK Sentinel is a security-awareness and incident-investigation prototype bui
 
 ---
 
-> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. The verified Vercel production alias is `https://satark-rose.vercel.app`; the production smoke workflow uses it by default and allows the repository Actions variable `SATARK_PRODUCTION_URL` to override it if the domain changes. A passing smoke run is still required before calling the deployment release-ready. FIRSTLIGHT's demo incident is synthetic. Optional Microsoft Defender/Entra response adapters are opt-in, require tenant credentials and explicit target-bound confirmation, and have not been live-validated or connected to the current simulated approval UI. The session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
+> **Prototype and safety boundary:** SATARK is a learning and triage aid, not an antivirus, certified forensic product, or proof that content is safe or malicious. The configured Vercel production alias is `https://satark-rose.vercel.app`; its current deployed revision and runtime health must be verified by the production smoke workflow before calling the deployment release-ready. The repository Actions variable `SATARK_PRODUCTION_URL` can override the target if the domain changes. FIRSTLIGHT's demo incident is synthetic. Optional Microsoft Defender/Entra response adapters are opt-in, require tenant credentials and explicit target-bound confirmation, and have not been live-validated or connected to the current simulated approval UI. The session-based audit chain is not independently anchored chain-of-custody evidence. Use synthetic or public, non-sensitive data in the current demo.
 
 ## Contents
 
@@ -480,6 +480,7 @@ Contributions are welcome, especially focused improvements to reliability, acces
 - [Architecture and threat model](docs/ARCHITECTURE.md)
 - [Analysis limitations](docs/ANALYSIS_LIMITATIONS.md)
 - [UI design notes](docs/UI_DESIGN.md)
+- [Local development and safe integration setup](docs/LOCAL_DEVELOPMENT.md)
 - [Release readiness and deployment sign-off](docs/RELEASE_READINESS.md)
 - [Free API setup and optional threat-intelligence lookups](docs/FREE_API_SETUP.md)
 - [FIRSTLIGHT live-response adapter scope and prerequisites](docs/FIRSTLIGHT_LIVE_RESPONSE.md)
