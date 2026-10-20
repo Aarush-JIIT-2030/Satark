@@ -16,7 +16,7 @@ test('Ollama bootstrap is opt-in and preserves deterministic fallback messaging'
   assert.match(windows, /ollama pull \$Model/);
   assert.match(unix, /SATARK deterministic analysis still works without Ollama/);
   assert.match(windows, /deterministic fallback still works/i);
-  assert.match(readme, //browser or server hosted on Vercel cannot reach//i);
+  assert.match(readme, /browser or server hosted on Vercel cannot reach/i);
 });
 
 test('bootstrap scripts use the official Ollama distribution and default to a modest model', async () => {
