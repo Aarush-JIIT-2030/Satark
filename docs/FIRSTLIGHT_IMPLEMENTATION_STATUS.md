@@ -1,33 +1,23 @@
 # FIRSTLIGHT implementation status
 
-Last reviewed: 2026-10-20
+Last reviewed: 2026-10-20 (UTC)
 
-## Fresh deployment check (2026-10-20 05:13 UTC)
+## Current source and release status
 
-- Current main: `e7dd7deceb4eebd7d538ed70b6a083383a8b069b` (local Compose Supabase-auth configuration fix).
-- Latest observed production deployment: `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`, READY, target `production`, source SHA `08983cd9c88b1cab91ea800577b2ddc291549250`. Production is one commit behind current main.
-- Attempting to deploy current main through the connected Vercel integration returned HTTP 403 because production-deployment permission is not available. Do not try to bypass this permission boundary.
-- Runtime-error inspection returned 403; direct browser smoke could not access the protected app. Deployment readiness does not establish live API or investigation workflow behavior.
-- The last known environment inventory lacked the FIRSTLIGHT API URL/token, Wazuh sync token/Indexer credentials, and private worker configuration. The current inventory could not be re-read. No authorized Wazuh lab endpoint or SATARK tenant/case/actor is available, so live ingestion and worker recovery remain unverified.
-- **Release decision remains NO-GO** until production configuration, identity, provider, worker-recovery, and evidence-verification gates pass. No hosted migration or synthetic production data was applied.
+- Current `main` after PR #174: `7f426fe793ab78375094111b7fed8462e669e018` (`Fix SATARK policies using revoked membership helper`).
+- PR #174 merged after its exact-head CI, CodeQL, isolated Supabase migration validation, tenant-isolation integration, and browser/accessibility smoke checks passed. The post-merge CI, CodeQL, and isolated migration-validation runs for the resulting `main` SHA are still running; their results must be checked before treating the merge as fully validated on `main`.
+- The latest observed Vercel production deployment remains `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`, READY at source SHA `08983cd9c88b1cab91ea800577b2ddc291549250`, which is older than current `main`. The connected Vercel integration previously returned HTTP 403 for production deployment permission. Do not bypass that permission boundary. A READY preview is not proof of production release.
+- The current Vercel environment-variable inventory contains Supabase settings, Upstash settings, and optional Ollama settings, but no `FIRSTLIGHT_API_URL`, `FIRSTLIGHT_API_TOKEN`, `FIRSTLIGHT_WAZUH_SYNC_TOKEN`, Wazuh Indexer credentials, or private worker-host configuration. No authorized Wazuh lab endpoint or SATARK tenant/case/member/actor is available.
+- Read-only inspection of the approved shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) confirms all 11 SATARK tables have RLS enabled and currently contain zero rows. The project also hosts Nirdhoom and Saathi; do not reset it or create fake production data.
+- Migration history still needs the guarded operator repair described in `docs/SUPABASE_MIGRATION_HISTORY_REPAIR.md`. The expected pending repository migrations after that repair are now two: `20261020050000_satark_foreign_key_support_indexes.sql` and `20261020051000_satark_rebind_membership_policies.sql`. Do not run a broad `supabase db push`; confirm the linked project and exact dry-run first.
+- **Release decision: NO-GO for production use** until post-merge main checks pass, migration history is reconciled and the exact pending-migration dry-run is verified, production deployment permission is restored by an authorized operator, the required API/Wazuh configuration and private worker are provisioned, and an authorized real end-to-end ingestion-to-report test plus recovery/backup verification succeeds. Keep live response actions disabled.
 
-
-## Current source and release status (updated after PR #170)
-
-- PR #160, **FIRSTLIGHT: persistent Wazuh ingestion and case investigation workflows**, is merged to `main`. Its latest observed pull-request checks passed: FIRSTLIGHT API CI, general CI, Web CI, CodeQL, and isolated Supabase migration validation.
-- PR #159's SATARK storage-policy helper fix is also merged, and its CI, CodeQL, isolated migration reset, tenant-isolation integration, and browser/accessibility smoke jobs passed on that PR head.
-- PR #161 and PR #164 are merged. The live history records `20261018114039`, `20261020042449` and `20261020044018`, but is missing `202610200004`, `20261020042000`, and `20261020050000`. PR #164 removed the duplicate `20261020043000` file. Read-only checks also found the five indexes from `20261020050000_satark_foreign_key_support_indexes.sql` absent from the live schema. PR #171 updates the guarded operator runbook; do not push until the two superseded versions are repaired and a dry-run proves the index migration is the sole pending migration.
-- The latest project-scoped Vercel deployment listing shows a READY production deployment at SHA `08983cd9c88b1cab91ea800577b2ddc291549250` (deployment `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`). Current `main` is now `e7dd7deceb4eebd7d538ed70b6a083383a8b069b`, one commit ahead; the connected integration denied permission to deploy that current SHA. Runtime-error inspection and direct browser smoke are blocked, so production functionality is not verified.
-- No real Wazuh endpoint/credentials or authorized SATARK tenant/case/member/actor is configured. The worker, durable job queue, and simulation-only approval schema exist in code, but real Wazuh-to-persisted-case-to-investigation-to-report execution, worker hosting/restart recovery, backup restoration, and production smoke verification remain blocked.
-- Keep real response actions disabled. A passing CI suite proves the checked code paths only; it does not establish live-provider, tenant-isolation, operational recovery, or production readiness.
-
-
-This status describes repository-backed behavior, not planned features or unverified live integrations.
+This status describes repository-backed behavior and explicitly lists external configuration gates; passing CI does not prove live-provider or production readiness.
 
 ## Current verified release-gate status (2026-10-20)
 
 - The Wazuh checkpoint migration is applied to the approved shared Supabase project `nihdhoom` after inspecting the existing SATARK schema, migration history, foreign keys, existing Wazuh evidence, and index conflicts. The checkpoint table has forced RLS with no `anon`/`authenticated` privileges; the duplicate-protection index is present. No Nirdhoom or Saathi tables/data were modified.
-- The live project currently has zero SATARK tenants, cases, memberships, evidence records, and ingestion checkpoints. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
+- Read-only table inspection confirms the live project currently has zero rows in all 11 SATARK data tables, including tenants, memberships, cases, evidence, ingestion checkpoints, investigation jobs, case notes, and approvals. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
 - The investigation API fails closed when `FIRSTLIGHT_API_TOKEN` is missing or shorter than 32 characters. The Next.js proxy requires the strong token even for local HTTP. The worker and authenticated source-download route enforce the bucket's 4 MiB object limit. PR #170 also fixes local Compose Supabase auth configuration; its recorded API CI, general CI, Web CI, CodeQL and browser/accessibility smoke checks passed. Its tenant-isolation job reported success but skipped the live-account test step.
 - Added a versioned deterministic rule registry (`firstlight_rules.py`, version `1.0.0`) with stable rule IDs, cautious candidate ATT&CK mappings and rule limitations. Its API container copy and CI path triggers were updated.
 - The Wazuh integration is merged in PR #160; its FIRSTLIGHT API CI, CodeQL, general CI, Web CI, and isolated migration validation passed on that PR head. PR #161 and PR #164 storage-policy cleanup checks passed; PR #167's object-key regression test and PR #168's SATARK foreign-key indexes also passed their exact-head CI, Web CI, CodeQL and isolated migration checks.
