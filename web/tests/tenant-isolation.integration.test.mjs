@@ -187,6 +187,30 @@ test('audit verification RPC permits tenant members and denies cross-tenant acce
   assert.equal(bResult[0].chain_valid, true, 'Tenant B seeded audit chain should verify successfully');
 });
 
+test('tenant creation RPC rejects anonymous calls and invalid tenant names', {
+  skip: configured ? false : 'Set up a dedicated non-admin Supabase test user; missing: ' + missing.join(', '),
+}, async () => {
+  const owner = await login(env.SATARK_TEST_USER_A_EMAIL, env.SATARK_TEST_USER_A_PASSWORD);
+
+  const anonymous = await fetch(base + '/rest/v1/rpc/satark_create_tenant', {
+    method: 'POST',
+    headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_name: 'Anonymous SATARK tenant creation probe' }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  assert.ok(
+    [401, 403, 404].includes(anonymous.status),
+    'tenant creation RPC must not be callable without an authenticated user; got HTTP ' + anonymous.status,
+  );
+
+  const invalidName = await rest(owner, 'rpc/satark_create_tenant', {
+    method: 'POST',
+    body: JSON.stringify({ tenant_name: '   ' }),
+  });
+  assert.equal(invalidName.status, 400, 'authenticated tenant creation should reject a blank tenant name');
+});
+
 const viewerRequired = [
   'SUPABASE_URL',
   'SUPABASE_PUBLISHABLE_KEY',
