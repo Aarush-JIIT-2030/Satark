@@ -1,0 +1,111 @@
+# SATARK tenant-isolation CI test environment
+
+This is an **isolated test-project setup**, not a production migration. It provisions disposable identities and records so the real PostgREST/RLS integration tests can exercise tenant boundaries. Never run the fixture SQL against the shared production Supabase project.
+
+## 1. Create a dedicated Supabase test project
+
+1. Create or select a separate Supabase project used only for SATARK integration tests.
+2. Apply the repository's SATARK schema migrations to that project from a trusted checkout. Reconcile migration history and preview pending migrations before applying anything; do not use a broad `db push` against the shared production project.
+3. Verify the test project's project reference in the Supabase dashboard before proceeding.
+4. In Authentication, create three confirmed, non-admin users:
+   - Tenant A owner
+   - Tenant B owner
+   - Viewer
+5. Use unique test-only email addresses and strong random passwords. Do not reuse production user accounts or credentials.
+
+## 2. Seed disposable tenant fixtures
+
+Open the **SQL Editor of the dedicated test project only**. Replace the three email placeholders below with the exact test-user email addresses created in step 1, then run the script. It creates three tenant memberships and one disposable case per tenant. It does not create or change Auth users or passwords.
+
+```sql
+do $$
+declare
+  user_a uuid;
+  user_b uuid;
+  user_viewer uuid;
+  tenant_a constant uuid := 'a1000000-0000-4000-8000-000000000001';
+  tenant_b constant uuid := 'b2000000-0000-4000-8000-000000000002';
+  tenant_viewer constant uuid := 'c3000000-0000-4000-8000-000000000003';
+  case_a constant uuid := 'a1000000-0000-4000-8000-000000000011';
+  case_b constant uuid := 'b2000000-0000-4000-8000-000000000022';
+  case_viewer constant uuid := 'c3000000-0000-4000-8000-000000000033';
+begin
+  select id into strict user_a from auth.users
+    where lower(email) = lower('REPLACE_WITH_TENANT_A_EMAIL');
+  select id into strict user_b from auth.users
+    where lower(email) = lower('REPLACE_WITH_TENANT_B_EMAIL');
+  select id into strict user_viewer from auth.users
+    where lower(email) = lower('REPLACE_WITH_VIEWER_EMAIL');
+
+  if user_a = user_b or user_a = user_viewer or user_b = user_viewer then
+    raise exception 'Test accounts must be three distinct Auth users';
+  end if;
+
+  insert into public.satark_tenants(id, name) values
+    (tenant_a, 'SATARK CI Tenant A'),
+    (tenant_b, 'SATARK CI Tenant B'),
+    (tenant_viewer, 'SATARK CI Viewer Tenant')
+  on conflict (id) do update set name = excluded.name;
+
+  insert into public.satark_memberships(tenant_id, user_id, role) values
+    (tenant_a, user_a, 'owner'),
+    (tenant_b, user_b, 'owner'),
+    (tenant_viewer, user_viewer, 'viewer')
+  on conflict (tenant_id, user_id) do update set role = excluded.role;
+
+  insert into public.satark_cases(id, tenant_id, title, status, severity, created_by, metadata) values
+    (case_a, tenant_a, 'Disposable CI case A', 'open', 'low', user_a, '{"test_fixture":true}'::jsonb),
+    (case_b, tenant_b, 'Disposable CI case B', 'open', 'low', user_b, '{"test_fixture":true}'::jsonb),
+    (case_viewer, tenant_viewer, 'Disposable viewer CI case', 'open', 'low', user_viewer, '{"test_fixture":true}'::jsonb)
+  on conflict (id) do update set
+    tenant_id = excluded.tenant_id,
+    title = excluded.title,
+    status = 'open',
+    severity = 'low',
+    created_by = excluded.created_by,
+    metadata = '{"test_fixture":true}'::jsonb;
+end $$;
+
+select id, name
+from public.satark_tenants
+where id in (
+  'a1000000-0000-4000-8000-000000000001',
+  'b2000000-0000-4000-8000-000000000002',
+  'c3000000-0000-4000-8000-000000000003'
+)
+order by id;
+```
+
+Confirm that exactly the three intended tenants are returned and that each has only its intended test membership and case. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
+
+## 3. Configure GitHub Actions secrets
+
+In the SATARK GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret**. Add the following names, using the dedicated test project URL, its publishable key, the three test accounts' credentials, and the matching tenant IDs from the SQL above:
+
+- `SATARK_TEST_SUPABASE_URL`
+- `SATARK_TEST_SUPABASE_PUBLISHABLE_KEY`
+- `SATARK_TEST_USER_A_EMAIL`
+- `SATARK_TEST_USER_A_PASSWORD`
+- `SATARK_TEST_TENANT_A_ID` = `a1000000-0000-4000-8000-000000000001`
+- `SATARK_TEST_USER_B_EMAIL`
+- `SATARK_TEST_USER_B_PASSWORD`
+- `SATARK_TEST_TENANT_B_ID` = `b2000000-0000-4000-8000-000000000002`
+- `SATARK_TEST_VIEWER_EMAIL`
+- `SATARK_TEST_VIEWER_PASSWORD`
+- `SATARK_TEST_VIEWER_TENANT_ID` = `c3000000-0000-4000-8000-000000000003`
+
+Use the Supabase **publishable/anon client key only**. Never put a service-role key, database password, or personal account credential in GitHub Actions secrets for this test. Do not paste secret values into issues, pull requests, logs, or chat.
+
+## 4. Verify the real test
+
+1. Re-run the CI workflow for the tenant-isolation PR.
+2. Confirm **Supabase tenant-isolation integration** passes and the real test cases execute; a skipped test is not a pass.
+3. Confirm Next.js validation, production browser/accessibility smoke, Python/FIRSTLIGHT tests, and CodeQL also pass.
+4. Review the CI log for accidental fixture data or credential disclosure.
+5. Keep the PR unmerged until all required checks pass.
+
+The integration test intentionally fails when any required fixture is missing. This guide only enables the test environment; it does not prove that the live production schema is repaired or that production tenant isolation is verified.
+
+## Cleanup
+
+After the tests are no longer needed, remove the three test users from the dedicated test project's Auth dashboard and remove the fixture tenants/cases there if desired. Never clean up by running broad deletes on the shared production project.
