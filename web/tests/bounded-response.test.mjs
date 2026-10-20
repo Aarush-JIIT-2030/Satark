@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { readBoundedResponseText } from '../src/lib/read-bounded-response.mjs';
 
 test('accepts a response exactly at the byte limit', async () => {
@@ -37,4 +38,11 @@ test('rejects invalid limits and malformed length headers', async () => {
   assert.deepEqual(await readBoundedResponseText(new Response('x'), 0), { ok: false, reason: 'unreadable' });
   const response = new Response('x', { headers: { 'content-length': 'unknown' } });
   assert.deepEqual(await readBoundedResponseText(response, 8), { ok: false, reason: 'unreadable' });
+});
+
+test('FIRSTLIGHT proxy applies the byte limit before parsing the upstream response', async () => {
+  const source = await readFile(new URL('../src/app/api/firstlight/investigate/route.ts', import.meta.url), 'utf8');
+  assert.match(source, /readBoundedResponseText\(response,\s*MAX_BODY_BYTES\)/);
+  assert.match(source, /MAX_BODY_BYTES\s*=\s*2\s*\*\s*1024\s*\*\s*1024/);
+  assert.doesNotMatch(source, /await\s+response\.text\(\)/);
 });
