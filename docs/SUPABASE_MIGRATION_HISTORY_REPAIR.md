@@ -56,7 +56,7 @@ supabase db push --dry-run --linked
 2. `20261020051000_satark_rebind_membership_policies.sql` — rebinds six SATARK RLS policies from the revoked public wrapper to the private membership helper.
 3. `20261020052000_satark_private_approval_rpc_implementations.sql` — moves four authenticated approval/assignable-member SECURITY DEFINER implementations behind private-schema functions while preserving public SECURITY INVOKER RPC wrappers.
 
-If any other migration is listed, stop and reconcile the migration set before applying anything. Do not execute the repair or push commands unless the linked project is confirmed as `igqgtlmnwssjaoxkkzbm` and the dry-run matches exactly. If it matches, apply the two pending SATARK-only migrations and verify the resulting history:
+If any other migration is listed, stop and reconcile the migration set before applying anything. Do not execute the repair or push commands unless the linked project is confirmed as `igqgtlmnwssjaoxkkzbm` and the dry-run matches exactly. If it matches, apply the three pending SATARK-only migrations and verify the resulting history:
 
 ```sh
 supabase db push --linked
@@ -64,7 +64,7 @@ supabase migration list --linked
 ```
 
 Then verify all five index names exist in `pg_indexes`:
-`satark_approvals_requested_by_idx`, `satark_approvals_decided_by_idx`, `satark_case_notes_created_by_idx`, `satark_cases_assigned_to_idx`, and `satark_investigation_jobs_requested_by_idx`. Also re-check that the six affected policies call `satark_private.has_membership` and that authenticated/anon cannot execute `public.satark_has_membership`. Run the isolated migration validation workflow after the live repair. Do not run a broad push if the dry-run differs from the expected two migrations.
+`satark_approvals_requested_by_idx`, `satark_approvals_decided_by_idx`, `satark_case_notes_created_by_idx`, `satark_cases_assigned_to_idx`, and `satark_investigation_jobs_requested_by_idx`. Also re-check that the six affected policies call `satark_private.has_membership` and that authenticated/anon cannot execute `public.satark_has_membership`. Run the isolated migration validation workflow after the live repair. Do not run a broad push if the dry-run differs from the expected three migrations.
 
 ## Read-only policy and ACL verification
 
