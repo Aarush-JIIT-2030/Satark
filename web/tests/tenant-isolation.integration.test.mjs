@@ -382,6 +382,62 @@ test('cross-tenant evidence, findings, reports, case updates and deletes are den
     assert.equal(originalRows.length, 1, 'cross-tenant delete must not remove the other tenant case');
     assert.equal(originalRows[0].title, originalTitle, 'cross-tenant update must not change the other tenant case');
 
+    // Verify all other persisted tenant resources remain unchanged as well.
+    // These child tables intentionally do not grant authenticated UPDATE/DELETE.
+    const immutableResourceProbes = [
+      ['satark_evidence', 'summary'],
+      ['satark_findings', 'title'],
+      ['satark_reports', 'title'],
+      ['satark_audit_events', 'action'],
+      ['satark_case_notes', 'body'],
+      ['satark_approvals', 'decision_reason'],
+      ['satark_investigation_jobs', 'error_code'],
+    ];
+    for (const [table, column] of immutableResourceProbes) {
+      const ownerRead = await rest(foreignSession, table + '?' + new URLSearchParams({
+        select: 'id,' + column,
+        tenant_id: 'eq.' + foreignTenant,
+        limit: '1',
+      }));
+      assert.equal(ownerRead.status, 200, table + ' fixture owner should be able to read its resource');
+      const ownerRows = await ownerRead.json();
+      assert.ok(ownerRows.length > 0, table + ' fixture must contain a row so immutability is not vacuous');
+      const rowId = ownerRows[0].id;
+      const originalValue = ownerRows[0][column];
+
+      const resourceUpdate = await rest(session, table + '?' + new URLSearchParams({
+        id: 'eq.' + rowId,
+        tenant_id: 'eq.' + foreignTenant,
+      }), {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ [column]: 'Cross-tenant mutation must not persist' }),
+      });
+      assert.ok(
+        [401, 403].includes(resourceUpdate.status),
+        table + ' cross-tenant update must be denied; got HTTP ' + resourceUpdate.status,
+      );
+
+      const resourceDelete = await rest(session, table + '?' + new URLSearchParams({
+        id: 'eq.' + rowId,
+        tenant_id: 'eq.' + foreignTenant,
+      }), { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+      assert.ok(
+        [401, 403].includes(resourceDelete.status),
+        table + ' cross-tenant delete must be denied; got HTTP ' + resourceDelete.status,
+      );
+
+      const verifyResource = await rest(foreignSession, table + '?' + new URLSearchParams({
+        select: 'id,' + column,
+        id: 'eq.' + rowId,
+        tenant_id: 'eq.' + foreignTenant,
+      }));
+      assert.equal(verifyResource.status, 200, table + ' fixture owner should verify its record is unchanged');
+      const verifiedRows = await verifyResource.json();
+      assert.equal(verifiedRows.length, 1, table + ' cross-tenant delete must not remove the other tenant record');
+      assert.equal(verifiedRows[0][column], originalValue, table + ' cross-tenant update must not change the other tenant record');
+    }
+
     const hash = 'a'.repeat(64);
     const attempts = [
       ['satark_evidence', {
