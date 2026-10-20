@@ -149,6 +149,44 @@ test('tenant owners can read and update cases in their own tenant', {
   }
 });
 
+test('audit verification RPC permits tenant members and denies cross-tenant access', {
+  skip: configured ? false : 'Set up two non-admin Supabase test users and separate tenant IDs; missing: ' + missing.join(', '),
+}, async () => {
+  const [a, b] = await Promise.all([
+    login(env.SATARK_TEST_USER_A_EMAIL, env.SATARK_TEST_USER_A_PASSWORD),
+    login(env.SATARK_TEST_USER_B_EMAIL, env.SATARK_TEST_USER_B_PASSWORD),
+  ]);
+  assert.notEqual(a.userId, b.userId, 'test users must be distinct');
+
+  const ownVerification = await rest(a, 'rpc/satark_verify_audit_chain', {
+    method: 'POST',
+    body: JSON.stringify({ target_tenant: env.SATARK_TEST_TENANT_A_ID }),
+  });
+  assert.equal(ownVerification.status, 200, 'tenant member should be allowed to verify their own audit chain');
+  const ownResult = await ownVerification.json();
+  assert.ok(Array.isArray(ownResult) && ownResult.length === 1, 'audit verifier should return one result row');
+  assert.equal(typeof ownResult[0].chain_valid, 'boolean', 'audit verifier should return a chain validity result');
+  assert.equal(ownResult[0].chain_valid, true, 'seeded tenant audit chain should verify successfully');
+
+  const foreignVerification = await rest(a, 'rpc/satark_verify_audit_chain', {
+    method: 'POST',
+    body: JSON.stringify({ target_tenant: env.SATARK_TEST_TENANT_B_ID }),
+  });
+  assert.ok(
+    [401, 403].includes(foreignVerification.status),
+    'audit verifier must deny a caller from another tenant; got HTTP ' + foreignVerification.status,
+  );
+
+  const bVerification = await rest(b, 'rpc/satark_verify_audit_chain', {
+    method: 'POST',
+    body: JSON.stringify({ target_tenant: env.SATARK_TEST_TENANT_B_ID }),
+  });
+  assert.equal(bVerification.status, 200, 'Tenant B member should verify Tenant B audit chain');
+  const bResult = await bVerification.json();
+  assert.ok(Array.isArray(bResult) && bResult.length === 1, 'Tenant B audit verifier should return one result row');
+  assert.equal(bResult[0].chain_valid, true, 'Tenant B seeded audit chain should verify successfully');
+});
+
 const viewerRequired = [
   'SUPABASE_URL',
   'SUPABASE_PUBLISHABLE_KEY',
