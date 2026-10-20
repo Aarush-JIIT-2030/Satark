@@ -29,7 +29,7 @@ test('SATARK foreign-key index migration covers all five known support indexes',
     );
   }
 
-  assert.doesNotMatch(sql, /drop\\s+(table|schema|index)\\b|truncate\\b|delete\\s+from\\b/i,
+  assert.doesNotMatch(sql, /drop\s+(table|schema|index)\b|truncate\b|delete\s+from\b/i,
     'support-index migration must not delete or destructively replace data');
 });
 
@@ -49,16 +49,16 @@ test('SATARK membership-policy repair rebinds all six policies to the private he
       `missing repaired policy ${policy}`);
   }
 
-  assert.equal((sql.match(/satark_private\\.has_membership\\s*\\(/gi) || []).length, 6,
+  assert.equal((sql.match(/satark_private\.has_membership\s*\(/gi) || []).length, 6,
     'each repaired policy must call the private membership helper');
-  assert.doesNotMatch(sql, /public\\.satark_has_membership\\s*\\(/i,
+  assert.doesNotMatch(sql, /public\.satark_has_membership\s*\(/i,
     'policies must not depend on the revoked public wrapper');
-  assert.doesNotMatch(sql, /drop\\s+table\\b|truncate\\b|delete\\s+from\\b/i,
+  assert.doesNotMatch(sql, /drop\s+table\b|truncate\b|delete\s+from\b/i,
     'policy repair must not alter or delete application data');
-  assert.match(sql, /requested_by\\s*=\\s*\\(select auth\\.uid\\(\\)\\)/i,
+  assert.match(sql, /requested_by\s*=\s*\(select auth\.uid\(\)\)/i,
     'job/approval creation must remain bound to the authenticated actor');
-  assert.match(sql, /status\\s*=\\s*'pending'/i,
+  assert.match(sql, /status\s*=\s*'pending'/i,
     'approval requests must start pending');
-  assert.match(sql, /status\\s*=\\s*'queued'/i,
+  assert.match(sql, /status\s*=\s*'queued'/i,
     'investigation jobs must start queued');
 });
