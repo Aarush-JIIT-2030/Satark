@@ -43,13 +43,16 @@ test('rejects invalid limits and malformed length headers', async () => {
   assert.deepEqual(await readBoundedResponseText(response, 8), { ok: false, reason: 'unreadable' });
 });
 
-test('FIRSTLIGHT proxy bounds authentication and investigation responses and validates JSON objects', async () => {
+test('FIRSTLIGHT proxy bounds authentication and investigation responses and validates schema', async () => {
   const source = await readFile(new URL('../src/app/api/firstlight/investigate/route.ts', import.meta.url), 'utf8');
   assert.match(source, /readBoundedResponseText\(response,\s*MAX_BODY_BYTES\)/);
   assert.match(source, /MAX_BODY_BYTES\s*=\s*2\s*\*\s*1024\s*\*\s*1024/);
   assert.match(source, /readBoundedResponseText\(response,\s*MAX_AUTH_RESPONSE_BYTES\)/);
   assert.match(source, /MAX_AUTH_RESPONSE_BYTES\s*=\s*16\s*\*\s*1024/);
   assert.match(source, /new TextDecoder\('utf-8',\s*\{\s*fatal:\s*true\s*\}\)/);
-  assert.match(source, /!payload\s*\|\|\s*typeof payload !== 'object'\s*\|\|\s*Array\.isArray\(payload\)/);
+  assert.match(source, /function isInvestigationResponse\(value: unknown\)/);
+  assert.match(source, /integrity_summary/);
+  assert.match(source, /agent_analysis/);
+  assert.match(source, /value\.limitations\.every/);
   assert.doesNotMatch(source, /await\s+response\.(?:text|json)\(\)/);
 });
