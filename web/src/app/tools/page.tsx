@@ -19,13 +19,12 @@ export default function ToolsPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">Workspace / Capability directory</div>
+        <div className="eyebrow">Capability directory</div>
         <h1>Every tool, with its real status.</h1>
         <p className="lead">Each entry states what you can open today, what runs locally in your browser, and what depends on a configured backend. Statuses describe implementation, not independent verification of every deployment.</p>
         <div className="workspace-grid capability-grid">
           {capabilities.map((item) => (
             <article className="workspace-card" id={item.id} key={item.id}>
-              <div className="eyebrow">{item.number}</div>
               <h2>{item.title}</h2>
               <p className="status-line"><strong>{item.status}</strong></p>
               <p>{item.detail}</p>

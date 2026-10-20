@@ -7,21 +7,49 @@ on:
   schedule:
     - cron: "30 3 * * *"
   deployment_status:
+  pull_request:
+    paths:
+      - ".github/workflows/production-smoke.yml"
+      - "web/src/app/page.tsx"
 
 permissions:
   contents: read
 
 concurrency:
-  group: satark-production-smoke
+  group: satark-production-smoke-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
   cancel-in-progress: true
 
 jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+      - name: Validate production smoke marker against homepage source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "Every second matters. Every piece of evidence counts." web/src/app/page.tsx
+          grep -Fq 'check_route "/" "Every second matters\. Every piece of evidence counts\."' .github/workflows/production-smoke.yml
+          grep -Fq 'Checking your secure session' web/src/app/firstlight/page.tsx
+          grep -Fq 'check_route "/firstlight" "Checking your secure session"' .github/workflows/production-smoke.yml
+          grep -Fq 'SATARK_VERCEL_PROTECTION_BYPASS' .github/workflows/production-smoke.yml
+          grep -Fq '.checks.firstlight.investigationProxyConfigured == true and .checks.firstlight.wazuhProxyConfigured == true' .github/workflows/production-smoke.yml
+          grep -Fq 'x-vercel-protection-bypass' .github/workflows/production-smoke.yml
+          grep -Fq 'satark-rose.vercel.app|satark-jyc-website.vercel.app' .github/workflows/production-smoke.yml
+          grep -Fq 'curl "${protection_args[@]}"' .github/workflows/production-smoke.yml
+
   smoke:
-    if: github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production'))
+    if: github.event_name != 'pull_request' && (github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SATARK_PRODUCTION_URL: https://satark-qzym.vercel.app
+      # Verified Vercel production alias; repository variable can override it after a domain change.
+      SATARK_PRODUCTION_URL: ${{ vars.SATARK_PRODUCTION_URL || 'https://satark-rose.vercel.app' }}
+      # Optional Vercel deployment-protection bypass scoped to this smoke workflow.
+      # Never disable SSO globally; leave empty when using a public custom domain.
+      SATARK_VERCEL_PROTECTION_BYPASS: ${{ secrets.SATARK_VERCEL_PROTECTION_BYPASS }}
     steps:
       - name: Check out current production branch revision
         uses: actions/checkout@v4
@@ -31,17 +59,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "${SATARK_PRODUCTION_URL:-}" ]]; then
+            echo "::error::Set the repository Actions variable SATARK_PRODUCTION_URL if the verified production domain changes."
+            exit 1
+          fi
           expected_sha="$(git rev-parse HEAD)"
           base="${SATARK_PRODUCTION_URL%/}"
           body="$(mktemp)"
           headers="$(mktemp)"
           trap 'rm -f "$body" "$headers"' EXIT
 
+          # Vercel can protect every *.vercel.app alias with SSO. When the owner
+          # configures a scoped bypass secret, send it only to the target smoke URL.
+          # This does not disable project-wide protection or expose the secret in output.
+          protection_args=()
+          if [[ -n "${SATARK_VERCEL_PROTECTION_BYPASS:-}" ]]; then
+            target_host="$(python -c 'import sys; from urllib.parse import urlsplit; print((urlsplit(sys.argv[1]).hostname or "").lower())' "$base")"
+            # Never forward the secret to an arbitrary SATARK_PRODUCTION_URL override.
+            case "$target_host" in
+              satark-rose.vercel.app|satark-jyc-website.vercel.app) ;;
+              *)
+                echo "::error::The Vercel protection bypass secret may only be sent to the verified SATARK Vercel aliases."
+                exit 1
+                ;;
+            esac
+            protection_args+=(--header "x-vercel-protection-bypass: ${SATARK_VERCEL_PROTECTION_BYPASS}")
+          fi
+
           check_route() {
             local route="$1"
             local marker="$2"
             local status
-            status="$(curl --silent --show-error --location --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base$route")"
+            status="$(curl "${protection_args[@]}" --silent --show-error --location --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base$route")"
             if [[ "$status" != "200" ]]; then
               echo "::error::Production route $route returned HTTP $status (expected 200)."
               exit 1
@@ -59,10 +108,17 @@ jobs:
             echo "PASS $route: HTTP 200, expected content and baseline security headers."
           }
 
+          # Regression guard: keep the production marker tied to the source hero heading.
+          if ! grep -Fq "Every second matters. Every piece of evidence counts." web/src/app/page.tsx; then
+            echo "::error::Homepage hero changed; update the production smoke marker and this contract check together."
+            exit 1
+          fi
+
           # Match route-specific body content rather than navigation labels shared by every page.
-          check_route "/" "Pause the panic|Find the signal"
+          check_route "/" "Every second matters\. Every piece of evidence counts\."
           check_route "/investigate" "Suspicious URL or message"
-          check_route "/firstlight" "Launch training case"
+          # FIRSTLIGHT is a client-authenticated route; SSR renders the secure-session status before browser auth redirects.
+          check_route "/firstlight" "Checking your secure session"
           check_route "/reports" "Review notes"
           check_route "/learn" "Check answers"
           check_route "/login" "Sign in securely"
@@ -72,7 +128,7 @@ jobs:
           check_unauthenticated_api() {
             local route="$1"
             local status
-            status="$(curl --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base$route")"
+            status="$(curl "${protection_args[@]}" --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base$route")"
             if [[ "$status" != "401" ]]; then
               echo "::error::Unauthenticated $route returned HTTP $status (expected 401)."
               exit 1
@@ -88,7 +144,7 @@ jobs:
           check_unauthenticated_api "/api/findings"
           check_unauthenticated_api "/api/reports"
 
-          api_status="$(curl --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base/api/analyze")"
+          api_status="$(curl "${protection_args[@]}" --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' "$base/api/analyze")"
           if [[ "$api_status" != "405" ]]; then
             echo "::error::GET /api/analyze returned HTTP $api_status (expected 405)."
             exit 1
@@ -100,19 +156,41 @@ jobs:
           echo "PASS /api/analyze: unsupported GET rejected with 405 and no-store."
 
           # Health is a public-safe configuration snapshot, not a claim of live dependency readiness.
-          health_status="$(curl --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$base/api/health")"
+          health_status="$(curl "${protection_args[@]}" --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$base/api/health")"
           if [[ "$health_status" != "200" ]]; then
             echo "::error::Production /api/health returned HTTP $health_status (expected 200)."
             exit 1
           fi
           jq -e '.status == "configuration-only" and (.checks.rateLimit.configured | type == "boolean") and (.checks.rateLimit.sharedAcrossInstances | type == "boolean") and (has("UPSTASH_REDIS_REST_TOKEN") | not)' "$body" >/dev/null
+          if ! jq -e '.checks.persistentStorage.configured == true and .checks.persistentStorage.clientConfigured == true and .checks.persistentStorage.serverClientMatch == true and .checks.persistentStorage.serverProjectRef == "igqgtlmnwssjaoxkkzbm" and .checks.persistentStorage.clientProjectRef == "igqgtlmnwssjaoxkkzbm"' "$body" >/dev/null; then
+            echo "::error::Production browser/server Supabase configuration is missing or mismatched; expected the verified SATARK project igqgtlmnwssjaoxkkzbm."
+            exit 1
+          fi
           rate_mode="$(jq -r '.checks.rateLimit.mode // empty' "$body")"
           shared_limiter_ok="$(jq -r '.checks.rateLimit.sharedAcrossInstances // false' "$body")"
           echo "Production health: rate limiter mode=$rate_mode sharedAcrossInstances=$shared_limiter_ok."
 
+          version_status="$(curl "${protection_args[@]}" --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$base/api/version")"
+          if [[ "$version_status" != "200" ]]; then
+            echo "::error::Production /api/version returned HTTP $version_status; the deployed build revision cannot be verified."
+            exit 1
+          fi
+          deployed_sha="$(jq -r '.commit // empty' "$body")"
+          if [[ "$deployed_sha" != "$expected_sha" ]]; then
+            echo "::error::Production is serving commit $deployed_sha, but current main is $expected_sha. Deployment is stale."
+            exit 1
+          fi
+          echo "PASS /api/version: production serves current main commit $expected_sha."
+
+          if ! jq -e '.checks.firstlight.investigationProxyConfigured == true and .checks.firstlight.wazuhProxyConfigured == true' "$body" >/dev/null; then
+            echo "::error::Production FIRSTLIGHT proxies are not configured with a safe backend URL and strong server-side tokens."
+            exit 1
+          fi
+          echo "PASS /api/health: FIRSTLIGHT investigation and Wazuh proxy configuration is present."
+
           # Exercise a harmless synthetic input. A missing shared limiter must fail closed,
           # but it is still a release blocker because the primary analysis feature is unavailable.
-          analysis_status="$(curl --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
+          analysis_status="$(curl "${protection_args[@]}" --silent --show-error --max-time 20 --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
             -X POST "$base/api/analyze" -H 'Content-Type: application/json' \
             --data '{"input":"Synthetic release smoke test: an ordinary internal status update."}')"
           if [[ "$rate_mode" == "shared-upstash" && "$shared_limiter_ok" == "true" ]]; then
@@ -135,14 +213,3 @@ jobs:
             exit 1
           fi
 
-          version_status="$(curl --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$base/api/version")"
-          if [[ "$version_status" != "200" ]]; then
-            echo "::error::Production /api/version returned HTTP $version_status; the deployed build revision cannot be verified."
-            exit 1
-          fi
-          deployed_sha="$(jq -r '.commit // empty' "$body")"
-          if [[ "$deployed_sha" != "$expected_sha" ]]; then
-            echo "::error::Production is serving commit $deployed_sha, but current main is $expected_sha. Deployment is stale."
-            exit 1
-          fi
-          echo "PASS /api/version: production serves current main commit $expected_sha."

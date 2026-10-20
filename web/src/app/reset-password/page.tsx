@@ -71,7 +71,7 @@ export default function ResetPasswordPage() {
             <Link className="btn btn-secondary" href="/login">Back to sign in</Link>
           </div>
           <section className="form-panel auth-card" aria-labelledby="reset-title">
-            <div className="card-head"><span>Identity</span><span className="pill">PASSWORD RESET</span></div>
+            <div className="card-head"><span>Identity</span><span className="pill">Password reset</span></div>
             <h2 id="reset-title">Choose a new password</h2>
             <form onSubmit={submit}>
               <label className="field-label" htmlFor="password">New password</label>

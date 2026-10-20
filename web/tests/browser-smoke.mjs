@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const require = createRequire(import.meta.url);
@@ -42,6 +43,7 @@ const browser = await chromium.launch({ headless: true });
 const routes = [
   { path: '/', heading: /SATARK|SENTINEL/i },
   { path: '/investigate', heading: /investigate|analysis|suspicious/i },
+  { path: '/url', heading: /inspect the link|URL structure review/i },
   { path: '/image-review', heading: /image review|inspect the image|image metadata/i },
   { path: '/tools', heading: /every tool|capability directory/i },
   { path: '/qr', heading: /decode first|QR investigation/i },
@@ -52,6 +54,7 @@ const routes = [
   { path: '/cases', heading: /manage saved cases|case management/i },
   { path: '/learn', heading: /learn|safety|social-engineering|pause\. verify\. then act/i },
   { path: '/login', heading: /investigations that|welcome back/i },
+  { path: '/reset-password', heading: /secure access|restored/i },
 ];
 
 async function inspectViewport(viewport, label) {
@@ -147,7 +150,7 @@ async function inspectViewport(viewport, label) {
       assert.match((await qrCard.textContent()) || '', /bundled fallback decoder|cross-browser decoding/i,
         'home QR copy must disclose remaining capability limits');
     }
-    if (route.path !== '/') {
+    if (!['/', '/login', '/reset-password'].includes(route.path)) {
       assert.equal(await page.locator('.nav-links a[aria-current="page"]').count(), 1,
         `${label}: exactly one current navigation link expected at ${route.path}`);
     }
@@ -192,6 +195,31 @@ async function inspectViewport(viewport, label) {
       assert.equal(await page.getByLabel('Email address').isVisible(), true, 'workspace sign-in email must be labelled and visible');
       assert.equal(await page.getByLabel('Password').isVisible(), true, 'workspace sign-in password must be labelled and visible');
       assert.equal(await page.getByRole('button', { name: 'Sign in securely' }).isVisible(), true, 'workspace sign-in action must be accessible');
+    }
+    if (route.path === '/reset-password') {
+      await page.getByRole('alert').filter({ hasText: /recovery link is missing or expired/i }).waitFor();
+      assert.equal(new URL(page.url()).hash, '', 'invalid recovery links must not remain in the visible URL');
+      assert.equal(await page.getByRole('link', { name: /sign in/i }).count() > 0, true,
+        'password recovery must provide a route back to sign-in');
+    }
+    if (route.path === '/url') {
+      const urlInput = page.getByLabel('URL or hostname');
+      const inspectButton = page.getByRole('button', { name: /inspect URL locally/i });
+      assert.equal(await inspectButton.isDisabled(), true, 'URL inspection should be disabled for empty input');
+      await urlInput.fill('https://example.com/account?token=synthetic-secret');
+      assert.equal(await inspectButton.isDisabled(), false, 'URL inspection should enable for non-empty input');
+      await inspectButton.click();
+      await page.getByText(/not a verdict/i).waitFor();
+      const resultText = await page.locator('[aria-labelledby="url-result-heading"]').innerText();
+      assert.match(resultText, /example\.com/i);
+      assert.equal(resultText.includes('synthetic-secret'), false, 'URL query values must not be rendered in findings');
+      await urlInput.fill('javascript:alert(1)');
+      await inspectButton.click();
+      await page.getByRole('alert').filter({ hasText: /only HTTP|valid URL|unsupported/i }).waitFor();
+      await page.getByRole('button', { name: /^clear$/i }).click();
+      assert.equal(await urlInput.inputValue(), '', 'clear must reset URL input');
+      assert.equal(await page.getByRole('alert').filter({ hasText: /Only HTTP and HTTPS URLs can be inspected/i }).count(), 0,
+        'clear must remove the URL validation error');
     }
     if (route.path === '/reports') {
       const notes = page.getByLabel('Review notes');
@@ -288,48 +316,18 @@ async function inspectViewport(viewport, label) {
         'document review should explain its local-only processing boundary');
     }
     if (route.path === '/media-review') {
-      const mediaBytes = await page.evaluate(async () => {
-        if (!('MediaRecorder' in window) || !HTMLCanvasElement.prototype.captureStream) {
-          throw new Error('This Chromium build does not support synthetic local media fixtures.');
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = 320;
-        canvas.height = 180;
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Could not create the synthetic video canvas.');
-        const stream = canvas.captureStream(8);
-        const preferredType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
-        const recorder = new MediaRecorder(stream, { mimeType: preferredType });
-        const parts = [];
-        recorder.addEventListener('dataavailable', event => { if (event.data.size) parts.push(event.data); });
-        const stopped = new Promise((resolve, reject) => {
-          recorder.addEventListener('stop', resolve, { once: true });
-          recorder.addEventListener('error', () => reject(new Error('Synthetic video recording failed.')), { once: true });
-        });
-        recorder.start(120);
-        const start = performance.now();
-        await new Promise(resolve => {
-          const draw = () => {
-            const elapsed = performance.now() - start;
-            context.fillStyle = elapsed % 500 < 250 ? '#132b3c' : '#b9f36b';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            context.fillStyle = elapsed % 500 < 250 ? '#b9f36b' : '#132b3c';
-            context.font = '18px sans-serif';
-            context.fillText('SATARK SYNTHETIC QA', 16, 92);
-            if (elapsed >= 2200) {
-              resolve();
-            } else {
-              setTimeout(draw, 100);
-            }
-          };
-          draw();
-        });
-        recorder.stop();
-        await stopped;
-        stream.getTracks().forEach(track => track.stop());
-        const blob = new Blob(parts, { type: recorder.mimeType || 'video/webm' });
-        return Array.from(new Uint8Array(await blob.arrayBuffer()));
-      });
+      // MediaRecorder-generated WebM often lacks a finite Duration element in headless
+      // Chromium. Generate a deterministic, finalized fixture with FFmpeg instead.
+      const fixturePath = path.join(artifactDir, `synthetic-media-${label}.webm`);
+      const generated = spawnSync('ffmpeg', [
+        '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i',
+        'color=c=0x132b3c:s=320x180:r=8', '-t', '2.2',
+        '-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8',
+        '-an', '-y', fixturePath,
+      ], { encoding: 'utf8' });
+      assert.equal(generated.status, 0,
+        'FFmpeg must create a finalized synthetic WebM fixture: ' + (generated.stderr || generated.error || 'unknown error'));
+      const mediaBytes = await fs.readFile(fixturePath);
       await page.locator('#media-file').setInputFiles({
         name: 'synthetic-media-test.webm',
         mimeType: 'video/webm',
@@ -338,9 +336,9 @@ async function inspectViewport(viewport, label) {
       const videoElement = page.locator('video[aria-label="Locally loaded video preview"]');
       const mediaStatus = await Promise.race([
         page.getByRole('status').filter({ hasText: /video metadata loaded locally/i }).waitFor().then(() => ({ kind: 'ready' })),
-        page.getByRole('alert').waitFor().then(async () => ({
+        page.locator('.local-review-page').getByRole('alert').waitFor().then(async () => ({
           kind: 'error',
-          text: await page.getByRole('alert').innerText().catch(() => 'No error text.'),
+          text: await page.locator('.local-review-page').getByRole('alert').innerText().catch(() => 'No error text.'),
           video: await videoElement.evaluate(video => {
             const target = video;
             return {
@@ -363,13 +361,19 @@ async function inspectViewport(viewport, label) {
         'media review should sample six bounded representative frames');
       assert.match(await page.locator('.local-review-hash').innerText(), /[a-f0-9]{64}/i,
         'media review should fingerprint the original video bytes');
-      assert.match(await page.locator('body').innerText(), /not a deepfake|not an authenticity/i,
+      assert.match(await page.locator('body').innerText(), /not a deepfake|not an authenticity|not a forensic verdict/i,
         'media review should not claim a forensic authenticity verdict');
     }
 
     if (route.path === '/firstlight') {
       await page.screenshot({ path: path.join(artifactDir, `firstlight-${label}.png`), fullPage: true });
-      const launch = page.getByRole('button', { name: /launch training case/i });
+      // FIRSTLIGHT is intentionally session-protected. A smoke run without a test
+      // identity must verify the login redirect, never bypass the access boundary.
+      if (new URL(page.url()).pathname === '/login') {
+        await page.getByRole('button', { name: /sign in securely/i }).waitFor();
+        continue;
+      }
+      const launch = page.locator('.firstlight-hero .btn-primary');
       await launch.waitFor();
       await launch.click();
       await page.getByRole('heading', { name: /artifacts & integrity/i }).waitFor();
@@ -485,6 +489,25 @@ try {
   await inspectViewport({ width: 1440, height: 900 }, 'desktop');
   await inspectViewport({ width: 390, height: 844 }, 'mobile');
   await inspectViewport({ width: 320, height: 720 }, 'small-mobile');
+
+  // URL inspection must remain local and must never fetch submitted destinations.
+  {
+    const urlPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const externalRequests = [];
+    const origin = new URL(baseURL).origin;
+    urlPage.on('request', request => {
+      const url = new URL(request.url());
+      if (url.protocol.startsWith('http') && url.origin !== origin) externalRequests.push(url.origin);
+    });
+    await urlPage.goto(baseURL + '/url', { waitUntil: 'networkidle' });
+    await urlPage.getByLabel('URL or hostname').fill('https://example.com/login?token=synthetic-secret');
+    await urlPage.getByRole('button', { name: /inspect URL locally/i }).click();
+    await urlPage.getByText(/not a verdict/i).waitFor();
+    assert.deepEqual(externalRequests, [], 'URL inspection must not fetch or transmit submitted destinations');
+    const resultText = await urlPage.locator('[aria-labelledby="url-result-heading"]').innerText();
+    assert.equal(resultText.includes('synthetic-secret'), false, 'URL query values must not appear in visible findings');
+    await urlPage.close();
+  }
 
   // Image inspection must stay in-browser and produce a reproducible SHA-256.
   {

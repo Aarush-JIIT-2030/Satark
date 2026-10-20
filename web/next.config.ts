@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { buildSecurityHeaders } from './src/lib/security-headers.mjs';
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },

@@ -232,10 +232,10 @@ export default function PdfReviewPage() {
       `Extraction truncated: ${result.truncated ? 'Yes' : 'No'}`,
       `Inspected at: ${result.extractedAt}`,
       '',
-      'LOCAL HEURISTIC SIGNALS',
+      'Local heuristic signals',
       ...(signals.length ? signals.map(item => `- ${item.label}: ${item.detail}`) : ['- No listed heuristic patterns were found. This does not mean the document is safe.']),
       '',
-      'LIMITATIONS',
+      'Limitations',
       '- Analysis is a set of local text-pattern indicators, not a trained threat detector or a verdict.',
       '- Text extraction does not render all layout, images, attachments, annotations or active content.',
       '- Scanned/image-only PDFs are not OCR-processed by this workflow.',
@@ -248,17 +248,17 @@ export default function PdfReviewPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage local-review-page" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">LOCAL ANALYSIS / DOCUMENTS</div>
+        <div className="eyebrow">Documents</div>
         <h1>Review the <span>document.</span></h1>
         <p className="lead">Extract text from supported PDFs and plain-text files, fingerprint the original file, and check for explainable social-engineering cues—all in this browser tab.</p>
 
         <section className="form-panel local-review-intro" aria-labelledby="document-method-heading">
           <div className="panel-heading">
             <div>
-              <div className="panel-kicker">PRIVATE BY DESIGN</div>
+              <div className="panel-kicker">Private by design</div>
               <h2 id="document-method-heading">The file stays on your device</h2>
             </div>
-            <span className="safe-chip"><LockKeyhole size={14} /> NO FILE UPLOAD</span>
+            <span className="safe-chip"><LockKeyhole size={14} /> No file upload</span>
           </div>
           <div className="local-review-points">
             <div><CheckCircle2 size={16} /><span>Text extraction and pattern checks run locally.</span></div>
@@ -268,7 +268,7 @@ export default function PdfReviewPage() {
         </section>
 
         <section className="form-panel" aria-labelledby="document-input-heading">
-          <div className="panel-kicker">SUPPORTED INPUT</div>
+          <div className="panel-kicker">Supported input</div>
           <h2 id="document-input-heading">Choose a document</h2>
           <p className="muted">PDF up to 15 MiB and 50 pages; TXT, Markdown, CSV or LOG up to 2 MiB. Office files, archives, embedded attachments and OCR for scanned PDFs are not supported in this workflow.</p>
           <label className="field-label" htmlFor="document-file">Document file</label>
@@ -295,14 +295,14 @@ export default function PdfReviewPage() {
           <>
             <section className="form-panel" aria-labelledby="document-results-heading">
               <div className="panel-heading">
-                <div><div className="panel-kicker">EXTRACTION RESULTS</div><h2 id="document-results-heading">Local review summary</h2></div>
-                <span className="safe-chip"><CheckCircle2 size={14} /> PROCESSED IN BROWSER</span>
+                <div><div className="panel-kicker">Extraction results</div><h2 id="document-results-heading">Local review summary</h2></div>
+                <span className="safe-chip"><CheckCircle2 size={14} /> Processed in browser</span>
               </div>
               <div className="local-review-stats">
-                <article className="local-review-stat"><span>FORMAT</span><strong>{result.kind}</strong></article>
+                <article className="local-review-stat"><span>Format</span><strong>{result.kind}</strong></article>
                 <article className="local-review-stat"><span>PAGES</span><strong>{result.pages ?? '—'}</strong></article>
-                <article className="local-review-stat"><span>TEXT CHARACTERS</span><strong>{result.extractedCharacters.toLocaleString()}</strong></article>
-                <article className="local-review-stat"><span>LOCAL CUES</span><strong>{signals.length}</strong></article>
+                <article className="local-review-stat"><span>Text characters</span><strong>{result.extractedCharacters.toLocaleString()}</strong></article>
+                <article className="local-review-stat"><span>Local cues</span><strong>{signals.length}</strong></article>
               </div>
               <div className="local-review-hash">
                 <span><Fingerprint size={15} /> Original file SHA-256</span>
@@ -312,7 +312,7 @@ export default function PdfReviewPage() {
               {result.text.trim() && (
                 <>
                   <div className="panel-heading document-findings-heading">
-                    <div><div className="panel-kicker">EXPLAINABLE SIGNALS</div><h3>Patterns worth reviewing</h3></div>
+                    <div><div className="panel-kicker">Explainable signals</div><h3>Patterns worth reviewing</h3></div>
                     <span className="pill">{signals.length} INDICATOR{signals.length === 1 ? '' : 'S'}</span>
                   </div>
                   {signals.length ? <div className="document-signal-list">
@@ -328,8 +328,8 @@ export default function PdfReviewPage() {
             {result.text.trim() && (
               <section className="form-panel" aria-labelledby="document-text-heading">
                 <div className="panel-heading">
-                  <div><div className="panel-kicker">EXTRACTED CONTENT</div><h2 id="document-text-heading">Review the text</h2></div>
-                  <span className="pill">LOCAL ONLY</span>
+                  <div><div className="panel-kicker">Extracted content</div><h2 id="document-text-heading">Review the text</h2></div>
+                  <span className="pill">Local only</span>
                 </div>
                 <label className="field-label" htmlFor="document-text-search">Find text in extracted content</label>
                 <input id="document-text-search" type="search" value={search} maxLength={160} onChange={event => setSearch(event.target.value)} placeholder="Search the extracted text…" />

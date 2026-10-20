@@ -14,10 +14,44 @@ function isHttpsUrl(value) {
   }
 }
 
+function isFirstlightBackendUrl(value, allowLocalHttp = true) {
+  if (!hasValue(value)) return false;
+  try {
+    const url = new URL(value.trim());
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1', 'firstlight-api']);
+    const allowedProtocol = url.protocol === 'https:' || (allowLocalHttp && url.protocol === 'http:' && localHosts.has(url.hostname));
+    return allowedProtocol && Boolean(url.hostname) && !url.username && !url.password && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+function supabaseProjectRef(value) {
+  if (!isHttpsUrl(value)) return null;
+  try {
+    const hostname = new URL(value.trim()).hostname.toLowerCase();
+    const match = hostname.match(/^([a-z0-9]{20})\.supabase\.co$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @param {Record<string, string | undefined>} [env={}] */
 export function buildHealthSnapshot(env = {}) {
   const localModelConfigured = hasValue(env.SATARK_OLLAMA_BASE_URL) && hasValue(env.SATARK_OLLAMA_MODEL);
-  const persistentStorageConfigured = isHttpsUrl(env.SUPABASE_URL) && hasValue(env.SUPABASE_PUBLISHABLE_KEY);
+  const firstlightApiUrlValid = isFirstlightBackendUrl(env.FIRSTLIGHT_API_URL, env.VERCEL !== '1');
+  const firstlightApiTokenConfigured = hasValue(env.FIRSTLIGHT_API_TOKEN) && env.FIRSTLIGHT_API_TOKEN.trim().length >= 32;
+  const firstlightWazuhSyncTokenConfigured = hasValue(env.FIRSTLIGHT_WAZUH_SYNC_TOKEN) && env.FIRSTLIGHT_WAZUH_SYNC_TOKEN.trim().length >= 32;
+  const serverSupabaseUrlValid = isHttpsUrl(env.SUPABASE_URL);
+  const clientSupabaseUrlValid = isHttpsUrl(env.NEXT_PUBLIC_SUPABASE_URL);
+  const serverProjectRef = supabaseProjectRef(env.SUPABASE_URL);
+  const clientProjectRef = supabaseProjectRef(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseClientServerMatch = Boolean(
+    serverProjectRef && clientProjectRef && serverProjectRef === clientProjectRef
+  );
+  const persistentStorageConfigured = serverSupabaseUrlValid && hasValue(env.SUPABASE_PUBLISHABLE_KEY);
+  const clientSupabaseConfigured = clientSupabaseUrlValid && hasValue(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const redisUrlPresent = hasValue(env.UPSTASH_REDIS_REST_URL);
   const redisTokenPresent = hasValue(env.UPSTASH_REDIS_REST_TOKEN);
   const redisUrlValid = isHttpsUrl(env.UPSTASH_REDIS_REST_URL);
@@ -30,15 +64,26 @@ export function buildHealthSnapshot(env = {}) {
     checks: {
       analysis: { mode: 'deterministic-local', configured: true },
       localModel: { configured: localModelConfigured },
+      firstlight: {
+        investigationProxyConfigured: firstlightApiUrlValid && firstlightApiTokenConfigured,
+        wazuhProxyConfigured: firstlightApiUrlValid && firstlightWazuhSyncTokenConfigured,
+      },
       rateLimit: {
         mode: sharedLimiterConfigured ? 'shared-upstash' : limiterMisconfigured ? 'misconfigured' : sharedLimiterRequired ? 'shared-required' : 'in-process',
         configured: sharedLimiterConfigured || (!limiterMisconfigured && !sharedLimiterRequired),
         sharedAcrossInstances: sharedLimiterConfigured,
         connectivityVerified: false,
       },
-      persistentStorage: { configured: persistentStorageConfigured },
+      persistentStorage: {
+        configured: persistentStorageConfigured,
+        clientConfigured: clientSupabaseConfigured,
+        serverClientMatch: supabaseClientServerMatch,
+        // Project refs are public identifiers, not keys or secrets. Never expose URLs or key values.
+        serverProjectRef,
+        clientProjectRef,
+      },
     },
-    note: 'Configuration snapshot only. This endpoint does not probe model, database, or Redis connectivity, prove tenant isolation, or validate rate-limit behavior. On Vercel, analysis requires a configured shared limiter; process-local limits are for local development only. Deterministic analysis requires no third-party AI API key.',
+    note: 'Configuration snapshot only. This endpoint does not probe model, database, Redis, or FIRSTLIGHT API connectivity, prove tenant isolation, or validate rate-limit behavior. It reports whether the browser and server are configured for the same Supabase project without exposing URLs or keys. On Vercel, analysis requires a configured shared limiter; process-local limits are for local development only. Deterministic analysis requires no third-party AI API key.',
   };
 }
 

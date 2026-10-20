@@ -2,35 +2,49 @@
 
 import SiteHeader from './site-header';
 import ServiceReadiness from '../components/service-readiness';
+import IntegrityLedger from '../components/ui/integrity-ledger';
 import {
-  ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, FileText, BookOpen, Activity,
-  LockKeyhole, ScanLine, ChevronRight, Eye, ShieldAlert, AlertTriangle, Link2, KeyRound,
+  ArrowRight, ArrowUpRight, ScanSearch, ShieldCheck, FileText, BookOpen, LockKeyhole, ScanLine, Eye, ShieldAlert,
+  Fingerprint, ListFilter, Radar, Clock3, SearchCheck, Route, UserCheck, Image as ImageIcon, Film, FolderKanban, ChevronRight,
 } from 'lucide-react';
 
-const workflows = [
-  { n: '01', icon: ScanSearch, title: 'Investigate a message or URL', text: 'Start with a suspicious message or link. Review deterministic signals without opening the destination.', href: '/investigate', action: 'Start investigation', tone: 'mint', tag: 'START HERE' },
-  { n: '02', icon: ShieldCheck, title: 'Explore FIRSTLIGHT', text: 'Walk through a synthetic account-compromise case with a timeline, evidence references, and review checkpoints.', href: '/firstlight', action: 'Open incident command', tone: 'blue', tag: 'GUIDED INVESTIGATION' },
-  { n: '03', icon: ScanLine, title: 'Decode a QR code', text: 'Read a QR payload locally and inspect the destination as text before deciding what to do.', href: '/qr', action: 'Open QR decoder', tone: 'violet', tag: 'LOCAL DECODING' },
-  { n: '04', icon: FileText, title: 'Review a document', text: 'Extract supported PDF or text content locally and inspect explainable social-engineering cues.', href: '/pdf-review', action: 'Review a document', tone: 'amber', tag: 'LOCAL DOCUMENT REVIEW' },
+// The order matches the shared FIRSTLIGHT engine's agent trace.
+const agents = [
+  { icon: Fingerprint, name: 'Evidence integrity', text: 'Checks every SHA-256 seal' },
+  { icon: ListFilter, name: 'Evidence triage', text: 'Sorts what to look at first' },
+  { icon: Radar, name: 'Detection & correlation', text: 'Links signals to evidence' },
+  { icon: Clock3, name: 'Timeline', text: 'Rebuilds the order of events' },
+  { icon: SearchCheck, name: 'Verification & gaps', text: 'Says what is still unknown' },
+  { icon: Route, name: 'Response planning', text: 'Proposes next actions' },
 ];
 
-const tools: Array<[string, string, string, string, string]> = [
-  ['01', 'Text & message triage', 'Spot pressure tactics, impersonation cues and risky requests.', '/investigate', 'OPEN ANALYSIS'],
-  ['02', 'URL review', 'Review a URL as text without automatically visiting it.', '/url', 'OPEN URL INSPECTOR'],
-  ['03', 'Image metadata & integrity', 'Inspect supported metadata markers and calculate a SHA-256 fingerprint locally. Not an authenticity verdict.', '/image-review', 'OPEN IMAGE REVIEW'],
-  ['04', 'QR-code investigation', 'Decode QR payloads locally with the native browser API and bundled fallback decoder. Destinations are never fetched automatically.', '/qr', 'OPEN QR DECODER'],
-  ['05', 'PDF & text document review', 'Extract supported PDF and plain-text content locally, calculate a source fingerprint and inspect explainable text cues.', '/pdf-review', 'OPEN DOCUMENT REVIEW'],
-  ['06', 'Video frame sampling', 'Inspect MP4/WebM metadata and sample up to six frames within bounded size/duration limits. No deepfake verdict.', '/media-review', 'OPEN MEDIA REVIEW'],
-  ['07', 'Threat-intelligence status', 'The local indicator cache needs an approved, provenance-tracked feed. No match does not mean safe.', '/tools#intel', 'VIEW STATUS'],
-  ['08', 'Persistent case workspace', 'Create and track tenant-scoped investigation cases when the workspace backend is configured.', '/cases', 'OPEN CASES'],
-  ['09', 'Reports & saved exports', 'Review local TXT/JSON exports and persistent report snapshots where the workspace database is configured.', '/reports', 'OPEN REPORTS'],
-  ['10', 'Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'OPEN LEARNING'],
+const bento = [
+  { icon: ScanSearch, title: 'Investigate a message or link', text: 'Paste a suspicious message or URL. See the signals behind the score, without SATARK opening the link.', href: '/investigate', cta: 'Start investigating', cls: 'span-3 wide-m', dots: true },
+  { icon: ShieldCheck, title: 'FIRSTLIGHT incident command', text: 'Reconstruct an account-compromise case from sealed evidence, then review each proposed response before it is recorded.', href: '/firstlight', cta: 'Open FIRSTLIGHT', cls: 'span-3 wide-m', dots: true },
+  { icon: ScanLine, title: 'Decode a QR code', text: 'Read the destination as text before your phone opens it.', href: '/qr', cta: 'Decode a QR code', cls: 'span-2' },
+  { icon: FileText, title: 'Review a document', text: 'Extract PDF or text locally and flag pressure and payment cues.', href: '/pdf-review', cta: 'Review a document', cls: 'span-2' },
+  { icon: ImageIcon, title: 'Inspect an image', text: 'Read metadata markers and fingerprint the file in your browser.', href: '/image-review', cta: 'Inspect an image', cls: 'span-2' },
+  { icon: Film, title: 'Sample video frames', text: 'Pull six representative frames from a clip for a closer look. No deepfake verdicts.', href: '/media-review', cta: 'Sample a video', cls: 'span-3 wide-m' },
+  { icon: FolderKanban, title: 'Cases and reports', text: 'Keep investigations, evidence and report snapshots in your team workspace once it is connected.', href: '/cases', cta: 'Open cases', cls: 'span-3 wide-m' },
+];
+
+const tools: Array<[string, string, string, string]> = [
+  ['Text & message triage', 'Spot pressure tactics, impersonation cues and risky requests.', '/investigate', 'Open analysis'],
+  ['URL review', 'Review a URL as text without automatically visiting it.', '/url', 'Open URL inspector'],
+  ['Image metadata & integrity', 'Inspect supported metadata markers and calculate a SHA-256 fingerprint locally. Not an authenticity verdict.', '/image-review', 'Open image review'],
+  ['QR-code investigation', 'Decode QR payloads locally with the native browser API and bundled fallback decoder. Destinations are never fetched automatically.', '/qr', 'Open QR decoder'],
+  ['PDF & text document review', 'Extract supported PDF and plain-text content locally, calculate a source fingerprint and inspect explainable text cues.', '/pdf-review', 'Open document review'],
+  ['Video frame sampling', 'Inspect MP4/WebM metadata and sample up to six frames within bounded size/duration limits. No deepfake verdict.', '/media-review', 'Open media review'],
+  ['Threat-intelligence status', 'The local indicator cache needs an approved, provenance-tracked feed. No match does not mean safe.', '/tools#intel', 'View status'],
+  ['Persistent case workspace', 'Create and track tenant-scoped investigation cases when the workspace backend is configured.', '/cases', 'Open cases'],
+  ['Reports & saved exports', 'Review local TXT/JSON exports and persistent report snapshots where the workspace database is configured.', '/reports', 'Open reports'],
+  ['Academy & scam challenge', 'Practice recognizing social-engineering patterns with educational examples.', '/learn', 'Open learning'],
 ];
 
 const principles = [
   { icon: Eye, title: 'Uncertainty stays visible', text: 'Signals are triage guidance, not a verdict.' },
   { icon: LockKeyhole, title: 'Privacy-aware by default', text: 'Submitted URLs are not automatically visited.' },
-  { icon: ShieldCheck, title: 'Human review stays central', text: 'Verify through a trusted channel before acting.' },
+  { icon: UserCheck, title: 'A person approves every response', text: 'Agents propose. Nothing is recorded as approved until you decide.' },
 ];
 
 export default function Home() {
@@ -38,64 +52,76 @@ export default function Home() {
     <main className="shell">
       <SiteHeader />
       <div className="container" id="main-content" tabIndex={-1}>
-
         <section className="sentinel-hero" aria-labelledby="hero-title">
+          <div className="dot-pattern" aria-hidden="true" />
           <div className="sentinel-hero-copy">
-            <div className="sentinel-kicker"><span className="kicker-orb" aria-hidden="true" /> Digital threat investigation</div>
-            <h1 id="hero-title">Check it before you <span>trust it.</span></h1>
-            <p className="sentinel-lede">Suspicious message, link, QR code or document? SATARK inspects it with transparent signals and tells you what to verify next—without visiting anything on your behalf.</p>
+            <a className="shiny-pill sentinel-kicker" href="/firstlight"><b>New</b><span className="shiny-text">FIRSTLIGHT multi-agent incident response</span><ChevronRight size={14} aria-hidden="true" /></a>
+            <h1 id="hero-title">Every second matters. Every piece of evidence counts.</h1>
+            <p className="sentinel-lede">Check suspicious messages, links and files with signals you can read. When it is more than a phishing email, FIRSTLIGHT rebuilds the incident from sealed evidence and waits for your approval before any response.</p>
             <div className="sentinel-hero-actions">
-              <a className="sentinel-primary" href="/investigate"><ScanSearch size={17} /> Start an investigation <ArrowUpRight size={16} /></a>
-              <a className="sentinel-secondary" href="/firstlight">Explore FIRSTLIGHT <ArrowRight size={15} /></a>
+              <a className="sentinel-primary" href="/investigate"><ScanSearch size={16} aria-hidden="true" /> Start an investigation</a>
+              <a className="sentinel-secondary" href="/firstlight">Open FIRSTLIGHT</a>
             </div>
-            <div className="sentinel-trust-line"><span><LockKeyhole size={13} /> Privacy-aware checks</span><i /> <span><Eye size={13} /> Human-reviewed</span><i /> <span><Activity size={13} /> Signals, not verdicts</span></div>
+            <div className="sentinel-trust-line">
+              <span><LockKeyhole size={14} aria-hidden="true" /> Links are never opened for you</span>
+              <span><UserCheck size={14} aria-hidden="true" /> Human-approved responses</span>
+            </div>
             <p className="field-note sentinel-privacy-note">Local deterministic checks by default. No third-party AI key is required. Optional self-hosted Ollama analysis is only used when configured.</p>
           </div>
+          <IntegrityLedger />
+        </section>
 
-          <div className="sentinel-visual" aria-label="Illustrative example of an analysis result">
-            <div className="sample-head"><span><span className="visual-live-dot" aria-hidden="true" /> Example result</span><span className="illustrative-chip">Illustrative</span></div>
-            <div className="sample-input"><b>Message under review</b>“Your account will be suspended in 24 hours. Verify now at secure-login.example/verify”</div>
-            <div className="sample-result">
-              <div className="risk-meter-labels"><span>Triage signal strength</span><span>High</span></div>
-              <div className="risk-meter-track"><span className="risk-meter-fill" style={{ width: '82%' }} /></div>
-              <ul className="sample-signals">
-                <li><AlertTriangle size={15} aria-hidden="true" /><span>Urgency pressure<small>Deadline language designed to rush a decision</small></span></li>
-                <li><KeyRound size={15} aria-hidden="true" /><span>Credential request<small>Asks you to sign in through a supplied link</small></span></li>
-                <li><Link2 size={15} aria-hidden="true" /><span>Unfamiliar destination<small>Link text is not the organisation’s own domain</small></span></li>
-              </ul>
-            </div>
-            <p className="sample-foot"><ShieldCheck size={14} aria-hidden="true" /> Next step: do not click. Open the official app or site yourself.</p>
+        <section className="home-section" aria-labelledby="pipeline-title">
+          <div className="sentinel-section-heading">
+            <div><div className="sentinel-overline">How FIRSTLIGHT works</div><h2 id="pipeline-title">Six specialist agents, one decision for you.</h2></div>
+            <p>Each agent does one job and hands a structured result to the next, so every finding can be traced back to the evidence that produced it.</p>
+          </div>
+          <div className="pipeline-card">
+            <div className="dot-pattern" aria-hidden="true" />
+            <ol className="pipeline" aria-label="FIRSTLIGHT agent sequence">
+              {agents.map(({ icon: Icon, name, text }) => (
+                <li className="pipeline-node" key={name}>
+                  <span className="pipeline-icon"><Icon size={20} strokeWidth={1.7} aria-hidden="true" /></span>
+                  <strong>{name}</strong><small>{text}</small>
+                </li>
+              ))}
+              <li className="pipeline-node is-human">
+                <span className="pipeline-icon"><UserCheck size={20} strokeWidth={1.7} aria-hidden="true" /></span>
+                <strong>You approve</strong><small>Nothing runs on its own</small>
+              </li>
+            </ol>
+            <p className="pipeline-caption">Records that change after they are sealed are quarantined before any finding is drawn, and response actions stay simulations until you approve them.</p>
           </div>
         </section>
 
         <section className="sentinel-workflows" aria-labelledby="workflow-title">
           <div className="sentinel-section-heading">
             <div><div className="sentinel-overline">Your workspace</div><h2 id="workflow-title">Choose the right starting point.</h2></div>
-            <p>Start with one focused workflow. Each tool explains what it can check, what it cannot prove, and what to verify next.</p>
+            <p>Each tool explains what it can check, what it cannot prove, and what to verify next.</p>
           </div>
-          <div className="sentinel-workflow-grid">
-            {workflows.map((item) => {
-              const Icon = item.icon;
-              return <article className={`sentinel-workflow-card tone-${item.tone}`} key={item.n}>
-                <div className="workflow-card-head"><span className="workflow-number">{item.n}</span><span className="workflow-icon"><Icon size={19} strokeWidth={1.7} /></span><span className="workflow-card-arrow"><ArrowUpRight size={17} /></span></div>
-                <div className="workflow-tag">{item.tag}</div><h3>{item.title}</h3><p>{item.text}</p>
-                <a href={item.href} className="workflow-link">{item.action} <ArrowRight size={14} /></a>
-              </article>;
-            })}
+          <div className="bento">
+            {bento.map(({ icon: Icon, title, text, href, cta, cls, dots }) => (
+              <a className={'bento-card ' + cls} href={href} key={title}>
+                {dots && <div className="dot-pattern" aria-hidden="true" />}
+                <span className="bento-icon"><Icon size={18} strokeWidth={1.7} aria-hidden="true" /></span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+                <span className="bento-cta">{cta} <ArrowRight size={14} aria-hidden="true" /></span>
+              </a>
+            ))}
           </div>
         </section>
 
         <section className="home-tools" aria-labelledby="capability-title">
           <div className="sentinel-section-heading">
-            <div><div className="sentinel-overline">Capability map</div><h2 id="capability-title">Know what is available—and what is not.</h2></div>
-            <p>See what is available today, plus the boundaries that matter. A missing signal never proves content is safe.</p>
+            <div><div className="sentinel-overline">Capability map</div><h2 id="capability-title">Know what is available, and what is not.</h2></div>
+            <p>A missing signal never proves content is safe. Each tool states its limits.</p>
           </div>
           <details className="tools-disclosure">
             <summary><span><strong>Browse the full capability map</strong><small>Every tool, its current status and its boundaries</small></span><span className="disclosure-icon" aria-hidden="true">＋</span></summary>
             <div className="tool-grid">
-              {tools.map(([number, title, description, href, action]) => <article className="tool-card" key={number}>
-                <div className="tool-card-top"><span>{number}</span><span className="tool-arrow" aria-hidden="true">↗</span></div>
-                <h3>{title}</h3><p>{description}</p><a className="text-link" href={href}>{action} →</a>
+              {tools.map(([title, description, href, action]) => <article className="tool-card" key={title}>
+                <h3>{title}</h3><p>{description}</p><a className="text-link" href={href}>{action}</a>
               </article>)}
             </div>
             <div className="tool-boundary"><span aria-hidden="true">i</span><p><strong>Important boundary:</strong> SATARK does not visit submitted URLs or execute uploaded files. Image metadata cannot prove authenticity. Persistent cases and evidence require a configured database and verified tenant access.</p></div>
@@ -103,22 +129,22 @@ export default function Home() {
         </section>
 
         <section className="sentinel-method" aria-labelledby="method-title">
-          <div className="method-intro"><div className="sentinel-overline">The SATARK standard</div><h2 id="method-title">Confidence comes<br />from <span>verification.</span></h2><p>Security tools should help you think clearly—not make decisions for you.</p><a href="/tools" className="method-link">Explore all capabilities <ArrowUpRight size={15} /></a></div>
+          <div className="method-intro"><div className="sentinel-overline">The SATARK standard</div><h2 id="method-title">Confidence comes from verification.</h2><p>Security tools should help you think clearly, not make decisions for you.</p><a href="/tools" className="method-link">Explore all capabilities <ArrowUpRight size={15} aria-hidden="true" /></a></div>
           <div className="method-principles">
-            {principles.map(({ icon: Icon, title, text }, i) => <article key={title} className="principle-row"><span className="principle-icon"><Icon size={18} /></span><span className="principle-number">0{i + 1}</span><div><h3>{title}</h3><p>{text}</p></div><ChevronRight className="principle-chevron" size={17} /></article>)}
+            {principles.map(({ icon: Icon, title, text }) => <article key={title} className="principle-row"><span className="principle-icon"><Icon size={18} aria-hidden="true" /></span><div><h3>{title}</h3><p>{text}</p></div></article>)}
           </div>
         </section>
 
         <section className="sentinel-boundary" aria-label="Capability status">
-          <div className="boundary-icon"><ShieldAlert size={20} /></div>
-          <div><strong>Built for careful triage—not false certainty.</strong><p>OCR for scanned PDFs, audio analysis and deepfake detection are not supported. QR destinations and submitted URLs are never visited automatically, and persistent case history depends on a configured workspace database. A missing signal never proves that content is safe.</p></div>
-          <a href="/tools">Capability status <ArrowUpRight size={15} /></a>
+          <div className="boundary-icon"><ShieldAlert size={18} aria-hidden="true" /></div>
+          <div><strong>Built for careful triage, not false certainty.</strong><p>OCR for scanned PDFs, audio analysis and deepfake detection are not supported. QR destinations and submitted URLs are never visited automatically, and persistent case history depends on a configured workspace database. A missing signal never proves that content is safe.</p></div>
+          <a href="/tools">Capability status <ArrowUpRight size={15} aria-hidden="true" /></a>
         </section>
 
-        <div style={{ marginTop: 32 }}><ServiceReadiness /></div>
+        <div style={{ marginTop: 24 }}><ServiceReadiness /></div>
 
         <section className="sentinel-learning-strip">
-          <div className="learning-mark"><BookOpen size={20} /></div><div><div className="sentinel-overline">Build your instincts</div><h2>Practice spotting the pressure.</h2><p>Learn the patterns behind urgency, impersonation, and social engineering in a safe environment.</p></div><a href="/learn" className="sentinel-secondary">Open the academy <ArrowRight size={15} /></a>
+          <div className="learning-mark"><BookOpen size={20} aria-hidden="true" /></div><div><div className="sentinel-overline">Build your instincts</div><h2>Practice spotting the pressure.</h2><p>Learn the patterns behind urgency, impersonation and social engineering in a safe environment.</p></div><a href="/learn" className="sentinel-secondary">Open the academy</a>
         </section>
       </div>
     </main>

@@ -3,23 +3,22 @@
 ## Candidate
 
 - Repository: `kaustubhdua/Satark`
-- Candidate branch at the time of this record: `main`
-- Candidate commit at the time of this record: `pending-merge`
-- Source pull request: https://github.com/kaustubhdua/Satark/pull/45
+- Candidate branch: `main`
+- Code baseline at this review: `1acf9e1392f3d0110f01cf1a2eed7a4a70946894` (PR #180, Wazuh worker membership revalidation). Current `main` is `ac602e537c4571e7c56a828c4b3038905140a883`, a docs-only release-evidence refresh on top of that code. Re-check the SHA after any later merge before release.
+- Source pull request: https://github.com/kaustubhdua/Satark/pull/180
 - Decision: **NO-GO for production until the outstanding checks below are evidenced.**
 
-This record distinguishes automated CI evidence from checks that still require a live deployment and authorized provider credentials. It must be updated with a new commit SHA if the candidate changes.
+This record distinguishes automated CI evidence from checks that still require a live deployment and authorized provider credentials. A passing CI run is not a production acceptance.
 
 ## Automated checks recorded
 
-For candidate `5abb923aefb749ccf04be87ddc047e91a1390d46`:
+- PR #174 head `0c607a1004f5a2b9811146b1e195be5a3a78cdd9`: general CI, CodeQL, isolated Supabase migration validation, web validation, and production browser/accessibility smoke passed. The pgTAP suite covers authenticated reads/writes for the six policies being rebound.
+- PR #173 head `130670e01087d8663427a85c5bbb37eb4b78f4e4`: FIRSTLIGHT API CI, CodeQL, web validation, and production browser/accessibility smoke passed for empty-window checkpoint advancement.
+- The workflow named `Supabase tenant-isolation integration` reported a successful job, but its live least-privilege-account test step was skipped because dedicated test credentials were unavailable. Do not treat that skipped step as evidence of live tenant-isolation success.
+- PR #177's 50-assertion pgTAP security suite and PR #178's policy-contract tests passed isolated migration validation. PR #180's FIRSTLIGHT API CI passed for the worker membership-revalidation change.
+- The FIRSTLIGHT API CI passed on code baseline `1acf9e1392f3d0110f01cf1a2eed7a4a70946894`. PR #182's docs-only CI and CodeQL passed; a main-branch CI run was cancelled during successive docs-only merges, so use the exact current main SHA and require a fresh successful check before release. Vercel's latest READY production deployment is at SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07` (main after PR #177), older than the worker fix and production-smoke contract. Production smoke run `39375823346` failed because the live `/` response lacked the expected homepage marker.
 
-- Python CI: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230216
-- Web CI: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230215
-- CodeQL: passed — https://github.com/kaustubhdua/Satark/actions/runs/38154230200
-- Python browser-smoke artifact: `satark-browser-smoke`, artifact ID `11707622682`.
-
-These results establish that the listed workflows passed on that commit. They do not establish live provider credentials work or that all journeys have been manually accepted in production.
+These results establish that the listed workflows passed on their exact PR heads. They do not establish that live provider credentials work or that the full production workflow has been accepted.
 
 ## Real functionality versus simulated/demo behavior
 
@@ -56,7 +55,7 @@ These results establish that the listed workflows passed on that commit. They do
 
 Use only authorized, non-sensitive test inputs. Never paste private, signed, customer, or credential-bearing URLs into a third-party reputation provider.
 
-- [ ] Groq: one benign synthetic message; validate schema, timeout, 401/403, 429, and 5xx behavior.
+- [ ] Optional local Ollama: run one benign synthetic event with model assistance enabled; validate schema rejection, timeout, unavailable-model behavior, and safe fallback. Confirm deterministic findings still work with model agents disabled; do not add a hosted AI API-key dependency.
 - [ ] URLhaus: explicitly opted-in known test URL or safe provider-documented test fixture; verify no-match and provider unavailable behavior. Confirm the disclosure is visible before sharing.
 - [ ] AbuseIPDB: explicitly opted-in public test IP approved for this purpose; verify no-match, provider unavailable, and malformed response behavior.
 - [ ] Offline/unconfigured: confirm the UI/API reports unavailable clearly and does not imply successful verification.
@@ -87,9 +86,9 @@ Use only authorized, non-sensitive test inputs. Never paste private, signed, cus
 
 ## Deployment blocker observed
 
-The Vercel deployment API returned `402 payment_required` with resource `api-deployments-free-per-day` and `retryAfter=86400`. The latest confirmed ready preview was commit `a794e6e9eca1b445ad93c07e90e278ff6f732a82`, not this candidate. Production was still on `0c90f1aef80c2ec405192deef027707ba0313979` at the time of verification.
+On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours). The direct Vercel deployment API also returned HTTP 403. The latest READY production deployment is `dpl_4HRahKGhrAGeEKQdqB2AhRcH4GUJ` at source SHA `1b6a2dee26498ef6eef5f28ba58062264ff98d07`, aliased as `satark-rose.vercel.app` and `satark-jyc-website.vercel.app`; it predates the worker fix and smoke-contract changes. Production smoke run `39375823346` also failed because the live homepage did not contain the expected marker. The project also has SSO protection enabled for all non-custom domains and no configured public custom domain; the smoke failure may be a protection/login response. Do not disable SSO globally. The owner must provide an approved public custom domain or a scoped Vercel protection-bypass secret for CI. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must clear the quota through the authorized account path, then deploy the exact current main SHA obtained from `git rev-parse origin/main` and verify it through `/api/version` and the Vercel deployment metadata.
 
-The browser automation provider reported a negative remaining credit balance (`-992`), so interactive live-browser acceptance could not be completed through that service. These are environment/account blockers, not passing tests.
+These are environment/account blockers, not passing tests.
 
 ## Go/no-go
 

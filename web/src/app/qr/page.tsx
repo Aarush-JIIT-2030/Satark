@@ -160,11 +160,11 @@ export default function QrPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">WORKSPACE / QR INVESTIGATION</div>
+        <div className="eyebrow">QR investigation</div>
         <h1>Decode first. Inspect locally.</h1>
         <p className="lead">QR decoding happens in your browser. If a decoded value is an HTTP/HTTPS URL, SATARK can inspect the URL text with its local analysis engine without visiting the destination or calling a third-party API.</p>
         <section className="panel" aria-labelledby="upload-heading">
-          <div className="eyebrow">LOCAL PROCESSING</div>
+          <div className="eyebrow">Local processing</div>
           <h2 id="upload-heading">Choose a QR-code image</h2>
           <p>JPEG, PNG or WebP · maximum 10 MiB · maximum 12 million pixels. Native decoding uses a bundled local fallback on unsupported browsers.</p>
           <label className="field-label" htmlFor="qr-image">QR image</label>
@@ -178,7 +178,7 @@ export default function QrPage() {
         </section>
         {payloads.length > 0 && (
           <section className="panel" aria-labelledby="results-heading">
-            <div className="eyebrow">OBSERVATIONS · NOT A VERDICT</div>
+            <div className="eyebrow">Observations · not a verdict</div>
             <h2 id="results-heading">Decoded payloads</h2>
             {payloads.map((payload, index) => {
               const classification = classifyPayload(payload);

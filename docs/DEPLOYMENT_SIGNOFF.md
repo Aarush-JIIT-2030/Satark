@@ -1,80 +1,76 @@
-# Deployment verification and release sign-off
+# SATARK / FIRSTLIGHT deployment sign-off
 
-This is an execution record. A missing result is unknown, not a pass. Repository CI does not prove that the hosted application is running the merged commit.
+Last reviewed: 2026-10-20 UTC
 
-## Candidate identity
+**Decision: NO-GO for production readiness.** This is an evidence record, not a promise that a missing check passed. CI proves the checked repository paths only; live-provider and production deployment behavior require separate proof.
 
-- Canonical repository: `kaustubhdua/Satark`
-- Candidate branch: `main`
-- Latest hardening merge commit: `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1` (PR #32; API request bounds, FIRSTLIGHT import validation, frontend CI gate)
-- Earlier UI baseline merge commit: `30fcffffb5fc9a0d395310ff2a121db496bf695a` (PR #28)
-- UI changes: [PR #25](https://github.com/kaustubhdua/Satark/pull/25) and [PR #28](https://github.com/kaustubhdua/Satark/pull/28), merged
-- Latest hardening: [PR #32](https://github.com/kaustubhdua/Satark/pull/32), merged
-- Deployment repository inspected read-only: [harshilgupta926/Satark](https://github.com/harshilgupta926/Satark) — older home/FIRSTLIGHT labels remain on its `main` branch
-- CI run on exact PR head `ed44973b458916cd7a9d61cd8b719d65c90f722e`: [run #842](https://github.com/kaustubhdua/Satark/actions/runs/38095332214) — PASS
-- CodeQL run on exact PR head `ed44973b458916cd7a9d61cd8b719d65c90f722e`: [run #311](https://github.com/kaustubhdua/Satark/actions/runs/38095332252) — PASS
-- Public demo URL: https://satark-32uppvjxwmderrchbhj7gj.streamlit.app/
-- Hosting dashboard repository / branch / deployed SHA: NOT VERIFIED (dashboard access/revision evidence unavailable)
-- Latest hardening checks on `51025b32c1daabfc44b8e113df5fbd213d5210fc`: [Web CI #7](https://github.com/kaustubhdua/Satark/actions/runs/38100733705) PASS; [Python CI #914](https://github.com/kaustubhdua/Satark/actions/runs/38100733730) PASS; [CodeQL #338](https://github.com/kaustubhdua/Satark/actions/runs/38100733749) PASS. These checks ran on the PR head before merge; merged commit checks and production deployment remain separate gates.
-- Tester / timestamp: automated repository checks inspected 2026-10-11; live sign-off incomplete
+## Candidate and deployment identity
 
-## Automated release-candidate result
+- Canonical repository: [kaustubhdua/Satark](https://github.com/kaustubhdua/Satark)
+- Latest validated application-code baseline on main: `48533e6b9c6bbfd05a49f3579ddb0a7e1ac6dda6` (PR #193, align the production-smoke `/firstlight` marker with the client-authenticated server-rendered session state). CI, web validation, CodeQL, and browser/accessibility smoke all passed on this exact SHA. The sign-off refresh is documentation-only; its new main SHA must receive its own checks before release. The tenant-isolation job reports success but skips its live-account test because dedicated least-privilege test accounts are not configured; this is not proof of live tenant isolation. The latest runtime-code change remains PR #190 (`a02b081c7ab7b22f3686cd31b4efc05646ecdb05`), whose FIRSTLIGHT API CI, general CI, and CodeQL passed. The tenant-isolation integration job reports success but skips the live-account test when dedicated credentials are unavailable.
+- Latest observed READY production deployment: `dpl_CaA5szHZG3cAR6uUGqyWRtbAAffD`, source SHA `99eb4308bbf0b8479d6defe8f012c690ef10fb8c`, URL `satark-gp8vod7s6-jyc-website.vercel.app`; aliases reported in project records are `satark-rose.vercel.app` and `satark-jyc-website.vercel.app`. Current main `48533e6b9c6bbfd05a49f3579ddb0a7e1ac6dda6` has no matching Vercel deployment. The last production smoke run `39380040568` failed against the old deployment because `/firstlight` lacked its expected marker; PR #193 fixed the marker contract on current main, but that fix is not deployed or verified in production.
+- Production smoke run `39377120818` failed because the live `/` response did not contain the expected homepage marker. The Vercel project reports SSO protection enabled for all non-custom domains and two `vercel.app` aliases. The connected Vercel tool returns HTTP 403 when listing alias mappings or fetching the protected alias, so the actual live alias target could not be independently verified; the smoke response may be a protection/login page or a stale deployment. A direct deployment API attempt returned HTTP 403; the Vercel bot also reports `build-rate-limit` / `api-deployments-free-per-day`, and runtime-error inspection returned 403. Do not bypass quota or deployment permission; the project owner must clear the quota and provide an approved public custom domain or a scoped smoke-bypass secret without disabling SSO globally.
+- Deployment is currently blocked by the daily deployment quota (`api-deployments-free-per-day`) and direct deployment API HTTP 403. Do not bypass billing/rate limits or change project settings automatically.
+- The connected Vercel runtime-error endpoint returned 403 for this project; current production runtime errors could not be independently inspected.
+- Production alias: [https://satark-rose.vercel.app](https://satark-rose.vercel.app). Alias runtime behavior and runtime-error inspection remain unverified; the unauthenticated production smoke failed its homepage marker check and the aliases are protected by SSO.
+- Vercel environment inventory (names/targets only; secret values were not decrypted) lists eight variables: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SATARK_OLLAMA_BASE_URL`, `SATARK_OLLAMA_MODEL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_URL`. No `FIRSTLIGHT_API_URL`, `FIRSTLIGHT_API_TOKEN`, `FIRSTLIGHT_WAZUH_SYNC_TOKEN`, or Wazuh Indexer URL/credentials are present. No `SUPABASE_SERVICE_ROLE_KEY` is present in Vercel; keep it on the private worker host, not in Vercel. The production connector/worker cannot be assumed configured.
 
-The PR #32 head `51025b32c1daabfc44b8e113df5fbd213d5210fc` passed Web CI (TypeScript check and Next.js production build), Python CI (unit tests and Streamlit browser smoke/layout checks), and CodeQL before merge. The merge commit is `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1`. Verify the merged commit's own workflow state separately. No reproducible `web/package-lock.json` is committed yet, and no live Groq request was run.
+## Verified repository checks
 
-## P0 — live demonstration smoke test
+- PR #160 (persistent Wazuh ingestion and investigation workflows): merged; FIRSTLIGHT API CI, CI, Web CI, CodeQL, and isolated Supabase migration validation passed on its PR head.
+- PR #159 (SATARK evidence-storage policy helper): merged; CI, CodeQL, isolated migration validation, tenant-isolation integration, and browser/accessibility smoke passed on its PR head.
+- PR #173 (Wazuh checkpoint advancement), PR #174 (six policy rebind), PR #177 (cross-tenant denial tests), PR #178 (policy contract tests and production-smoke marker contract), and PR #180 (worker membership revalidation): merged; their relevant API, isolated migration, CI, browser/accessibility, and CodeQL checks passed on exact PR heads. These checks do not prove live Wazuh connectivity or current production behavior.
+- PR #161 (storage migration history): merged; CI, CodeQL, and isolated migration validation passed on its validated head.
+- PR #164 (remove unrecorded storage-policy migration duplicate): CI, Web CI, CodeQL, and isolated migration validation passed on its exact head.
+- PR #167 (strict evidence-upload object-key regression test): CI, Web CI, browser/accessibility smoke, tenant-isolation integration, and CodeQL passed; merged as `cf5be5927a572999841741e1129019b4f7823628`.
+- PR #168 (SATARK foreign-key support indexes): CI, Web CI, browser/accessibility smoke, tenant-isolation integration, CodeQL, and isolated migration validation passed; merged as `92dcca3c748ac54e1da526da331be23ac404487a`.
+- PR #167 (strict evidence upload object-key contract): CI, Web CI and CodeQL passed and the test-only PR is merged.
+- These are PR-head checks, not proof that the current production deployment runs that SHA.
 
-Status: **PARTIAL PASS — current public UI matches the product-style copy; NOT SIGNED OFF**. A fresh interactive browser session on 2026-10-11 rendered the home heading `Pause the panic. Find the signal.`, showed the primary actions `Open FIRSTLIGHT →`, `Start an investigation →`, and `View example report`, opened FIRSTLIGHT, and observed `Open / reset training case`. Read-only inspection of `harshilgupta926/Satark` also confirms the current `ui/home.py` and `ui/firstlight.py` contain these updated labels. This resolves the earlier stale-copy observation, but it does **not** identify the host's configured branch or deployed commit SHA, and it does not complete the full live workflow suite. The app is created by `harshilgupta926`; the canonical repo `kaustubhdua/Satark` is a different repository. GitHub integration access to the deployment repository is read-only (branch creation returned 403), and the hosting dashboard revision is not accessible.
+## Verified hosted database facts
 
-| Check | Result | Evidence / notes |
+Read-only queries against the shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) confirm:
+- `satark_evidence_object_insert` and `satark_evidence_object_read` call `satark_private.has_membership`, enforce tenant/case ownership, and scope raw Wazuh snapshots to owner/responder/analyst while allowing viewers to read ordinary evidence.
+- Authenticated can execute the private membership helper; authenticated and anon cannot execute the public membership wrapper.
+- Authenticated cannot execute the audit-trigger function as an RPC.
+- All 11 SATARK data tables have RLS enabled and zero rows; there are no tenants, cases, memberships, evidence records, jobs, notes, or approvals. No synthetic production records were created.
+
+The live migration history records `20261018114039`, `20261020042449` and `20261020044018`, but not `202610200004`, `20261020042000`, `20261020050000`, or the new `20261020051000_satark_rebind_membership_policies.sql`. The canonical storage policy is recorded under `20261020044018`; the unrecorded `20261020043000` migration file was removed by PR #164 and should not be repaired as a local migration. See [SUPABASE_MIGRATION_HISTORY_REPAIR.md](SUPABASE_MIGRATION_HISTORY_REPAIR.md). A trusted operator must reconcile versions `202610200004` and `20261020042000` with the Supabase CLI, then verify the dry-run shows exactly `20261020050000_satark_foreign_key_support_indexes.sql` and `20261020051000_satark_rebind_membership_policies.sql` pending before applying those SATARK-only migrations. The six approval/case-note/investigation-job policies still call the revoked public membership wrapper in the live database; those operations can fail closed until PR #174's migration is applied.
+
+## Supabase advisor review
+
+A read-only advisor run on 2026-10-20 reported one INFO finding for `satark_ingestion_checkpoints` (RLS enabled without policies). This is intentional: the table is forced-RLS and has no `anon` or `authenticated` table privileges; the persistent worker uses the server-side service role. The advisor also reported SECURITY DEFINER RPC warnings across the shared project. The four SATARK RPCs inspected (`satark_authorize_response_action`, `satark_consume_response_approval`, `satark_decide_approval`, and `satark_list_assignable_members`) have an empty search path and explicit authentication/tenant-role/approval checks; retain the regression tests and review these guards whenever the functions change. Other warnings include Nirdhoom/Saathi functions and were not modified in this SATARK task.
+
+The performance advisor identified five SATARK foreign-key columns without covering indexes. PR #168 added those indexes to the repository and passed isolated migration validation, but the migration has not been applied to the shared project because migration-history repair is still pending. Re-run the advisor after the approved linked migration push; do not remove unused indexes solely because the current SATARK tables have zero rows.
+
+## Release gates
+
+| Gate | Status | Required evidence |
 |---|---|---|
-| Hosting repository and branch | PARTIAL | Live shell identifies app creator as `harshilgupta926`; deployment repo's current home/FIRSTLIGHT copy matches the fresh live observation. Exact host branch still requires dashboard confirmation |
-| Deployed revision equals approved SHA | BLOCKED | No dashboard build SHA or in-app build identifier |
-| Home renders without runtime error | PASS (basic render only) | Fresh interactive browser shows current home UI and navigation; no visible runtime error. This does not verify the deployed revision |
-| FIRSTLIGHT entry / training case | PARTIAL | FIRSTLIGHT opens and `Open / reset training case` is visible. The case was not loaded in this pass; deeper workflow/export tests remain outstanding |
-| Evidence integrity and tampering | NOT RUN | Needs live interaction |
-| Findings, timeline, gaps | NOT RUN | Needs live interaction |
-| Simulated approval and rejection | NOT RUN | Needs live interaction |
-| Audit-chain validation | NOT RUN | Needs live interaction |
-| FIRSTLIGHT JSON export | NOT RUN | Needs live interaction |
-| Scanner workflows and graceful provider failure | NOT RUN | Authorized provider credentials and controlled test inputs needed |
-| URL SSRF / redirect protections | NOT RUN | Must use controlled test endpoints |
-| PDF export opens and contains expected sections | NOT RUN | Needs live browser download |
-| Video / image / QR scanner edge cases | NOT RUN | Needs controlled sample corpus |
-| Desktop/mobile live layout | NOT RUN | Live browser blocked |
-| Secret hygiene | PARTIAL / NOT VERIFIED | Repository config reviewed; live logs and browser errors not inspectable |
-| Hosting-level body/time/concurrency/egress limits | NOT VERIFIED | Requires hosting configuration access |
+| Exact current main deployed to production | BLOCKED | Vercel quota cleared, authorized deployment path available, and source SHA matched to current main |
+| Production alias points to that deployment | NOT VERIFIED | Alias metadata tied to deployment ID and exact SHA; production smoke currently fails and aliases are SSO-protected |
+| Current production runtime errors inspected | BLOCKED | Vercel runtime-error access restored or another authorized source used |
+| Storage policy ACL and tenant/case scope | PASS (read-only inspection) | Current live policy definitions and function grants queried |
+| Migration history reconciled | BLOCKED | CLI repair for versions 202610200004 and 20261020042000, followed by linked migration-list verification |
+| Isolated database migrations and RLS tests | PASS on PR #159/#160/#161/#164 heads | Exact-head workflow results on the merged PRs |
+| Real Wazuh Indexer connection | NOT RUN | Authorized lab endpoint, dedicated least-privilege credentials, verified TLS, bounded query and real alert fixture |
+| Persisted Wazuh-to-case-to-investigation-to-report workflow | BLOCKED | Authorized SATARK tenant/case/actor and successful end-to-end run with checkpoint/restart/idempotency verification |
+| Worker operational recovery | NOT RUN | Private persistent host, restart/retry test, monitoring and backup/restore drill |
+| Response execution | SIMULATION ONLY | Live containment remains disabled; any future enablement needs durable human approval, scoped authorization, rollback and an approved lab |
+| Desktop/mobile and production browser smoke on current main | BLOCKED | Exact-SHA deployment plus accessible public custom domain or scoped smoke bypass and successful browser/accessibility evidence |
 
-## P1 — provider and security validation
+## Required next steps
 
-Status: **BLOCKED pending authorized target-environment testing**.
-
-- Model IDs are configured in `ai_provider.py`; availability to the target API account has not been verified.
-- No live provider success/failure test was run in this pass. Do not infer provider health from unit tests.
-- No production-host adversarial file/URL or concurrency tests were run.
-- Provider data-processing/retention terms and the intended data's privacy/legal basis still require owner review.
-- Continue to use synthetic or non-sensitive data until these gates are closed.
-
-## P1 — investigation quality
-
-Repository unit tests cover evidence hash mismatches, ID substitution, malformed evidence, evidence references, timeline ordering across timezones, malformed audit chains, simulated approval/rejection, and bounded imports. These are automated code-level checks, not a complete live or operational evaluation. A repeatable evaluation dataset and measured precision/recall, false-positive rate, grounding rate and latency remain open.
-
-## P2 — broader-use architecture
-
-Not a production approval. Before confidential or multi-tenant use, complete authenticated access and authorization, tenant isolation, durable case/evidence storage, protected/independently verifiable audit records, retention/deletion and backup/recovery, distributed quotas and cost controls, monitoring, incident ownership, and a measured evaluation program.
-
-## Go / no-go
-
-- **Supervised hackathon demo:** NO-GO for a verified release sign-off until the hosting revision is matched to the approved commit and applicable live P0 checks are run.
-- **Public anonymous service with a shared provider key:** NO-GO until host-level abuse controls, global quotas and monitoring are verified.
-- **Confidential / regulated data:** NO-GO until P1 identity, tenant isolation, persistence, retention, provider and recovery controls are implemented and reviewed.
+1. In a trusted CLI environment, repair migration-history versions `202610200004` and `20261020042000` as applied only after verifying the existing schema objects, as documented in `docs/SUPABASE_MIGRATION_HISTORY_REPAIR.md`; do not execute their historical SQL.
+2. Run `supabase db push --dry-run --linked` against the confirmed project and stop unless exactly `20261020050000_satark_foreign_key_support_indexes.sql` and `20261020051000_satark_rebind_membership_policies.sql` are pending. Apply only those SATARK-owned migrations, verify the migration list, indexes, policy helper references, and function ACLs.
+3. Have the Vercel project owner clear the deployment quota and resolve direct deployment permission. Keep SSO enabled; provide an approved public custom domain or scoped protection-bypass secret for smoke testing. Deploy the exact current main SHA through the authorized Git integration and verify `/api/version` and deployment metadata.
+4. Provision the FIRSTLIGHT API host and configure server-side `FIRSTLIGHT_API_URL`/`FIRSTLIGHT_API_TOKEN`; configure `FIRSTLIGHT_WAZUH_SYNC_TOKEN` only for the sync endpoint if used. Do not put service-role credentials in Vercel.
+5. Provision an authorized Wazuh lab endpoint and a separate SATARK test tenant/case/actor; run the private worker with its service-role key only on the private host. Validate ingestion, checkpoint advancement, revocation handling, restart recovery, deduplication, source downloads, investigation, report export, and tenant isolation.
+6. Complete monitoring, backup/restore and recovery drills. Keep live response disabled until a separately reviewed and tested approval/execution workflow exists.
 
 ## Sign-off
 
-- Final status: **BLOCKED — repository hardening is merged and its PR-head CI/CodeQL checks passed, but production deployment SHA identity and full live smoke remain unverified; deployment write access is unavailable from this connection**
-- Candidate SHA: `51d840c7a3aef7f695e1a2cd63bf6e5e7952b1e1`
-- Outstanding blockers: integrate/review overlapping UI PRs #29–#31 safely; add and verify a reproducible frontend lockfile and regression tests; verify exact deployed SHA and configured host branch; run full live interactive workflows; perform authorized provider and adversarial tests; and review host controls/privacy. GitHub write access to `harshilgupta926/Satark` is unavailable to this integration.
-- Accepted residual risks / owner: not yet assigned
-- Rollback tested: NO / NOT VERIFIED
-- Reviewer: automated repository review; human deployment owner sign-off pending
-- Date: 2026-10-11
+- Final status: **BLOCKED — implementation and several PR checks are verified, but current-main production deployment, live Wazuh end-to-end execution, migration-history repair, and operational recovery are not verified.**
+- Human release owner: not assigned in this record.
+- Rollback/restore drill: not verified.
+- No claim of production readiness or forensic certification is made.

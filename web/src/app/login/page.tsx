@@ -97,7 +97,7 @@ export default function LoginPage() {
           </div>
           <section className="form-panel auth-card" aria-labelledby="auth-title">
             {!session ? <>
-              <div className="card-head"><span>Identity</span><span className="pill">{mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}</span></div>
+              <div className="card-head"><span>Identity</span><span className="pill">{mode === 'signin' ? 'Sign in' : 'Create account'}</span></div>
               <h2 id="auth-title">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>
               <p className="muted">Use your workspace account. Email confirmation may be required depending on the Supabase Auth configuration.</p>
               {recovering ? <>
@@ -121,7 +121,7 @@ export default function LoginPage() {
                 <p className="muted">{mode === 'signin' ? 'New to SATARK?' : 'Already have an account?'} <button type="button" className="text-button" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setNotice(''); }}>{mode === 'signin' ? 'Create an account' : 'Sign in'}</button></p>
               </>}
             </> : <>
-              <div className="card-head"><span>Authenticated</span><span className="pill">SESSION ACTIVE</span></div>
+              <div className="card-head"><span>Authenticated</span><span className="pill">Session active</span></div>
               <h2 id="auth-title">Your workspaces</h2>
               <p className="muted">Signed in as {session.user.email || session.user.id}</p>
               {tenants.length ? <div className="workspace-list" aria-label="Available workspaces">

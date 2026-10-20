@@ -13,7 +13,7 @@ test('health snapshot never claims full readiness and exposes non-shared rate li
   assert.equal(snapshot.checks.rateLimit.mode, 'in-process');
   assert.equal(snapshot.checks.rateLimit.configured, true);
   assert.equal(snapshot.checks.rateLimit.connectivityVerified, false);
-  assert.match(snapshot.note, /does not probe model, database, or Redis connectivity/i);
+  assert.match(snapshot.note, /does not probe model, database, Redis, or FIRSTLIGHT API connectivity/i);
 });
 
 test('production health accurately marks shared limiting as a hard requirement', () => {
@@ -32,6 +32,92 @@ test('optional model and persistent storage require complete configuration pairs
   assert.equal(buildHealthSnapshot({ SATARK_OLLAMA_BASE_URL: 'http://localhost:11434', SATARK_OLLAMA_MODEL: 'local-model' }).checks.localModel.configured, true);
   assert.equal(buildHealthSnapshot({ SUPABASE_URL: 'https://example.supabase.co' }).checks.persistentStorage.configured, false);
   assert.equal(buildHealthSnapshot({ SUPABASE_URL: 'https://example.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'public-key' }).checks.persistentStorage.configured, true);
+});
+
+test('FIRSTLIGHT proxy readiness requires safe backend URL and strong server-side tokens', () => {
+  const missing = buildHealthSnapshot({});
+  assert.deepEqual(missing.checks.firstlight, {
+    investigationProxyConfigured: false,
+    wazuhProxyConfigured: false,
+  });
+
+  const configured = buildHealthSnapshot({
+    FIRSTLIGHT_API_URL: 'https://firstlight.internal.example',
+    FIRSTLIGHT_API_TOKEN: 'a'.repeat(32),
+    FIRSTLIGHT_WAZUH_SYNC_TOKEN: 'b'.repeat(32),
+  });
+  assert.deepEqual(configured.checks.firstlight, {
+    investigationProxyConfigured: true,
+    wazuhProxyConfigured: true,
+  });
+
+  const localCompose = buildHealthSnapshot({
+    FIRSTLIGHT_API_URL: 'http://firstlight-api:8788',
+    FIRSTLIGHT_API_TOKEN: 'a'.repeat(32),
+    FIRSTLIGHT_WAZUH_SYNC_TOKEN: 'b'.repeat(32),
+  });
+  assert.equal(localCompose.checks.firstlight.investigationProxyConfigured, true);
+  assert.equal(localCompose.checks.firstlight.wazuhProxyConfigured, true);
+
+  const productionLocalHttp = buildHealthSnapshot({
+    VERCEL: '1',
+    FIRSTLIGHT_API_URL: 'http://firstlight-api:8788',
+    FIRSTLIGHT_API_TOKEN: 'a'.repeat(32),
+    FIRSTLIGHT_WAZUH_SYNC_TOKEN: 'b'.repeat(32),
+  });
+  assert.equal(productionLocalHttp.checks.firstlight.investigationProxyConfigured, false);
+  assert.equal(productionLocalHttp.checks.firstlight.wazuhProxyConfigured, false);
+
+  for (const url of ['http://firstlight.example.com', 'https://user:pass@firstlight.example.com', 'https://firstlight.example.com?token=leak']) {
+    const unsafe = buildHealthSnapshot({
+      FIRSTLIGHT_API_URL: url,
+      FIRSTLIGHT_API_TOKEN: 'a'.repeat(32),
+      FIRSTLIGHT_WAZUH_SYNC_TOKEN: 'b'.repeat(32),
+    });
+    assert.equal(unsafe.checks.firstlight.investigationProxyConfigured, false, 'unsafe backend URL: ' + url);
+    assert.equal(unsafe.checks.firstlight.wazuhProxyConfigured, false, 'unsafe backend URL: ' + url);
+  }
+
+  const weakTokens = buildHealthSnapshot({
+    FIRSTLIGHT_API_URL: 'https://firstlight.internal.example',
+    FIRSTLIGHT_API_TOKEN: 'short',
+    FIRSTLIGHT_WAZUH_SYNC_TOKEN: 'also-short',
+  });
+  assert.equal(weakTokens.checks.firstlight.investigationProxyConfigured, false);
+  assert.equal(weakTokens.checks.firstlight.wazuhProxyConfigured, false);
+  const serialized = JSON.stringify(configured);
+  assert.doesNotMatch(serialized, /firstlight\.internal\.example|aaaaaaaa|bbbbbbbb/i);
+});
+
+test('Supabase mapping confirms browser/server project equality without exposing URLs or keys', () => {
+  const snapshot = buildHealthSnapshot({
+    SUPABASE_URL: 'https://igqgtlmnwssjaoxkkzbm.supabase.co',
+    SUPABASE_PUBLISHABLE_KEY: 'server-publishable-key',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://igqgtlmnwssjaoxkkzbm.supabase.co',
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'browser-publishable-key',
+  });
+  assert.equal(snapshot.checks.persistentStorage.configured, true);
+  assert.equal(snapshot.checks.persistentStorage.clientConfigured, true);
+  assert.equal(snapshot.checks.persistentStorage.serverClientMatch, true);
+  assert.equal(snapshot.checks.persistentStorage.serverProjectRef, 'igqgtlmnwssjaoxkkzbm');
+  assert.equal(snapshot.checks.persistentStorage.clientProjectRef, 'igqgtlmnwssjaoxkkzbm');
+  const serialized = JSON.stringify(snapshot);
+  assert.doesNotMatch(serialized, /https:\/\//i);
+  assert.doesNotMatch(serialized, /publishable-key/i);
+});
+
+test('Supabase mapping reports mismatched browser and server projects', () => {
+  const snapshot = buildHealthSnapshot({
+    SUPABASE_URL: 'https://igqgtlmnwssjaoxkkzbm.supabase.co',
+    SUPABASE_PUBLISHABLE_KEY: 'server-publishable-key',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://ogbanmjokjlxfuktkicj.supabase.co',
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'browser-publishable-key',
+  });
+  assert.equal(snapshot.checks.persistentStorage.configured, true);
+  assert.equal(snapshot.checks.persistentStorage.clientConfigured, true);
+  assert.equal(snapshot.checks.persistentStorage.serverClientMatch, false);
+  assert.equal(snapshot.checks.persistentStorage.serverProjectRef, 'igqgtlmnwssjaoxkkzbm');
+  assert.equal(snapshot.checks.persistentStorage.clientProjectRef, 'ogbanmjokjlxfuktkicj');
 });
 
 test('blank environment values count as missing', () => {

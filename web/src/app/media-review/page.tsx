@@ -141,7 +141,7 @@ function exportSummary(review: MediaReview) {
     'Sampled frame count: ' + review.frames.length,
     'Inspected at: ' + review.sampledAt,
     '',
-    'FRAME SAMPLES',
+    'Frame samples',
     ...review.frames.map(frame => [
       'Frame ' + frame.index + ' at ' + frame.timestampSeconds.toFixed(3) + ' s',
       '  Preview dimensions: ' + frame.width + ' × ' + frame.height,
@@ -149,7 +149,7 @@ function exportSummary(review: MediaReview) {
       '  Mean preview luminance (0–255): ' + frame.meanLuminance,
     ].join('\n')),
     '',
-    'LIMITATIONS',
+    'Limitations',
     '- Only six representative times are sampled. Motion between samples is not inspected.',
     '- The browser decoder determines the frames and media metadata available to this tool.',
     '- Audio is not transcribed or analyzed; container/codec forensic metadata is not extracted.',
@@ -315,14 +315,14 @@ export default function MediaReviewPage() {
     <main className="shell">
       <SiteHeader />
       <div className="container subpage local-review-page" id="main-content" tabIndex={-1}>
-        <div className="eyebrow">LOCAL ANALYSIS / MEDIA</div>
+        <div className="eyebrow">Media</div>
         <h1>Inspect the <span>frames.</span></h1>
         <p className="lead">Read browser-decoded metadata, fingerprint the original video file, and sample a handful of representative frames without uploading the media.</p>
 
         <section className="form-panel local-review-intro" aria-labelledby="media-method-heading">
           <div className="panel-heading">
-            <div><div className="panel-kicker">BOUNDED LOCAL PROCESSING</div><h2 id="media-method-heading">A video sample, not a forensic verdict</h2></div>
-            <span className="safe-chip"><LockKeyhole size={14} /> NO FILE UPLOAD</span>
+            <div><div className="panel-kicker">Bounded local processing</div><h2 id="media-method-heading">A video sample, not a forensic verdict</h2></div>
+            <span className="safe-chip"><LockKeyhole size={14} /> No file upload</span>
           </div>
           <div className="local-review-points">
             <div><ShieldCheck size={16} /><span>MP4/WebM only, 50 MiB and 120-second limits.</span></div>
@@ -332,7 +332,7 @@ export default function MediaReviewPage() {
         </section>
 
         <section className="form-panel" aria-labelledby="media-input-heading">
-          <div className="panel-kicker">SUPPORTED INPUT</div>
+          <div className="panel-kicker">Supported input</div>
           <h2 id="media-input-heading">Choose a video</h2>
           <p className="muted">The supported browser decoder must be able to read the clip. This feature does not inspect audio, run deepfake detection, transcribe speech or parse all container metadata.</p>
           <label className="field-label" htmlFor="media-file">Video file</label>
@@ -345,9 +345,9 @@ export default function MediaReviewPage() {
           }} aria-label="Locally loaded video preview" /></div>}
           {metadata && (
             <div className="local-review-stats">
-              <article className="local-review-stat"><span>DURATION</span><strong>{formatDuration(metadata.durationSeconds)}</strong></article>
-              <article className="local-review-stat"><span>FRAME SIZE</span><strong>{metadata.width} × {metadata.height}</strong></article>
-              <article className="local-review-stat"><span>FILE SIZE</span><strong>{(metadata.bytes / (1024 * 1024)).toFixed(2)} MiB</strong></article>
+              <article className="local-review-stat"><span>Duration</span><strong>{formatDuration(metadata.durationSeconds)}</strong></article>
+              <article className="local-review-stat"><span>Frame size</span><strong>{metadata.width} × {metadata.height}</strong></article>
+              <article className="local-review-stat"><span>File size</span><strong>{(metadata.bytes / (1024 * 1024)).toFixed(2)} MiB</strong></article>
             </div>
           )}
           {error && <p className="error-message" role="alert">{error}</p>}
@@ -363,7 +363,7 @@ export default function MediaReviewPage() {
         {review && (
           <section className="form-panel" aria-labelledby="media-results-heading">
             <div className="panel-heading">
-              <div><div className="panel-kicker">INSPECTION RESULTS</div><h2 id="media-results-heading">Sampled frame timeline</h2></div>
+              <div><div className="panel-kicker">Inspection results</div><h2 id="media-results-heading">Sampled frame timeline</h2></div>
               <span className="safe-chip"><Activity size={14} /> {review.frames.length} LOCAL SAMPLES</span>
             </div>
             <div className="local-review-hash"><span><Fingerprint size={15} /> Original file SHA-256</span><code>{review.fileSha256}</code></div>
