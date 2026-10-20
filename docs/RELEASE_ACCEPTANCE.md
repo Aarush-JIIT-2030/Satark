@@ -4,8 +4,8 @@
 
 - Repository: `kaustubhdua/Satark`
 - Candidate branch: `main`
-- Source baseline at this review: `7f426fe793ab78375094111b7fed8462e669e018` (PR #174, SATARK membership-policy repair). Re-check the SHA after any later merge before release.
-- Source pull request: https://github.com/kaustubhdua/Satark/pull/174
+- Source baseline at this review: `1acf9e1392f3d0110f01cf1a2eed7a4a70946894` (PR #180, Wazuh worker membership revalidation). Re-check the SHA after any later merge before release.
+- Source pull request: https://github.com/kaustubhdua/Satark/pull/180
 - Decision: **NO-GO for production until the outstanding checks below are evidenced.**
 
 This record distinguishes automated CI evidence from checks that still require a live deployment and authorized provider credentials. A passing CI run is not a production acceptance.
@@ -15,7 +15,8 @@ This record distinguishes automated CI evidence from checks that still require a
 - PR #174 head `0c607a1004f5a2b9811146b1e195be5a3a78cdd9`: general CI, CodeQL, isolated Supabase migration validation, web validation, and production browser/accessibility smoke passed. The pgTAP suite covers authenticated reads/writes for the six policies being rebound.
 - PR #173 head `130670e01087d8663427a85c5bbb37eb4b78f4e4`: FIRSTLIGHT API CI, CodeQL, web validation, and production browser/accessibility smoke passed for empty-window checkpoint advancement.
 - The workflow named `Supabase tenant-isolation integration` reported a successful job, but its live least-privilege-account test step was skipped because dedicated test credentials were unavailable. Do not treat that skipped step as evidence of live tenant-isolation success.
-- Current source baseline `7f426fe793ab78375094111b7fed8462e669e018` still has a failing Vercel deployment status due to the account's deployment quota. The latest production deployment SHA is older than this baseline.
+- PR #177's 50-assertion pgTAP security suite and PR #178's policy-contract tests passed isolated migration validation. PR #180's FIRSTLIGHT API CI passed for the worker membership-revalidation change.
+- Current source baseline `1acf9e1392f3d0110f01cf1a2eed7a4a70946894` has post-merge CI and CodeQL still running at this review and a failing Vercel deployment status due to the account's deployment quota. The latest production deployment SHA is older than this baseline.
 
 These results establish that the listed workflows passed on their exact PR heads. They do not establish that live provider credentials work or that the full production workflow has been accepted.
 
@@ -85,7 +86,7 @@ Use only authorized, non-sensitive test inputs. Never paste private, signed, cus
 
 ## Deployment blocker observed
 
-On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours; retry window 24 hours). The connected Vercel API has also returned HTTP 403 for deployment permission/inspection. The latest known READY production deployment source SHA is `08983cd9c88b1cab91ea800577b2ddc291549250`, older than current main. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must resolve the quota/permission, then deploy and verify the exact approved SHA.
+On 2026-10-20, Vercel reported `api-deployments-free-per-day` (more than 100 deployments in 24 hours; retry window 24 hours). The connected Vercel API has also returned HTTP 403 for deployment permission/inspection. The latest known READY production deployment source SHA is `08983cd9c88b1cab91ea800577b2ddc291549250`, older than current main `1acf9e1392f3d0110f01cf1a2eed7a4a70946894`. Do not repeatedly retry while quota is exhausted or bypass deployment permissions. The project owner must resolve the quota/permission, then deploy and verify the exact approved SHA.
 
 These are environment/account blockers, not passing tests.
 

@@ -4,9 +4,11 @@ Last reviewed: 2026-10-20 (UTC)
 
 ## Current source and release status
 
-- Current `main` after PR #174: `7f426fe793ab78375094111b7fed8462e669e018` (`Fix SATARK policies using revoked membership helper`).
-- PR #174 merged after its exact-head CI, CodeQL, isolated Supabase migration validation, tenant-isolation integration, and browser/accessibility smoke checks passed. The post-merge `main` CI (including browser/accessibility and tenant-isolation jobs), CodeQL, and clean-database migration/security regression workflow also passed on `7f426fe793ab78375094111b7fed8462e669e018`.
-- PR #173 is also merged: successful empty Wazuh query windows advance the durable checkpoint to the drained window boundary, while failed polls preserve the prior cursor. Its API regression tests, CodeQL, web validation, and browser/accessibility smoke passed.
+- Current `main` at this review: `1acf9e1392f3d0110f01cf1a2eed7a4a70946894` (PR #180, revalidate Wazuh worker membership around privileged writes).
+- PR #174 merged with the policy-rebind migration after its exact-head CI, CodeQL, isolated Supabase migration validation, web validation, and browser/accessibility smoke passed. The post-merge checks on `7f426fe793ab78375094111b7fed8462e669e018` passed; later source changes mean the current main CI and CodeQL must be rechecked before release.
+- PR #173 is merged: successful empty Wazuh query windows advance the durable checkpoint to the drained window boundary, while failed polls preserve the prior cursor. Its API regression tests, CodeQL, web validation, and browser/accessibility smoke passed.
+- PR #177 added cross-tenant read/write denial coverage for case notes, investigation jobs, and approvals; its 50-assertion pgTAP suite, CodeQL, and isolated migration validation passed. PR #178 added policy contract checks and a production-smoke marker guard; its isolated migration validation and production-smoke contract check passed.
+- PR #180 is merged with per-poll, per-page, and checkpoint-boundary membership revalidation for the long-running Wazuh worker. Its FIRSTLIGHT API CI passed; current-main CI and CodeQL are still running at this review.
 - The latest observed Vercel production deployment remains `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`, READY at source SHA `08983cd9c88b1cab91ea800577b2ddc291549250`, which is older than current `main`. The connected Vercel integration previously returned HTTP 403 for production deployment permission, and the latest Vercel bot check reports `api-deployments-free-per-day` (over 100 deployments in 24 hours). Do not bypass the permission boundary or repeatedly retry deployment while the quota is exhausted; wait for the quota window to reset or have the project owner change the plan. A READY preview is not proof of production release.
 - The current Vercel environment-variable inventory contains Supabase settings, Upstash settings, and optional Ollama settings, but no `FIRSTLIGHT_API_URL`, `FIRSTLIGHT_API_TOKEN`, `FIRSTLIGHT_WAZUH_SYNC_TOKEN`, Wazuh Indexer credentials, or private worker-host configuration. No authorized Wazuh lab endpoint or SATARK tenant/case/member/actor is available.
 - Read-only inspection of the approved shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) confirms all 11 SATARK tables have RLS enabled and currently contain zero rows. The project also hosts Nirdhoom and Saathi; do not reset it or create fake production data.
@@ -16,7 +18,7 @@ Last reviewed: 2026-10-20 (UTC)
 
 This status describes repository-backed behavior and explicitly lists external configuration gates; passing CI does not prove live-provider or production readiness.
 
-## Current verified release-gate status (2026-10-20)
+## Earlier verified release-gate status (2026-10-20; pre-PR #174)
 
 - The Wazuh checkpoint migration is applied to the approved shared Supabase project `nihdhoom` after inspecting the existing SATARK schema, migration history, foreign keys, existing Wazuh evidence, and index conflicts. The checkpoint table has forced RLS with no `anon`/`authenticated` privileges; the duplicate-protection index is present. Its no-policy advisor notice is intentional because only the private worker/service role should access it. No Nirdhoom or Saathi tables/data were modified.
 - Read-only table inspection confirms the live project currently has zero rows in all 11 SATARK data tables, including tenants, memberships, cases, evidence, ingestion checkpoints, investigation jobs, case notes, and approvals. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
