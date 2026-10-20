@@ -300,9 +300,22 @@ test('viewer role cannot create or update cases', {
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({ status: 'resolved' }),
   });
-  if ([401, 403].includes(update.status)) return;
-  assert.equal(update.status, 200, `viewer update must be denied by authorization/RLS, got HTTP ${update.status}`);
-  assert.deepEqual(await update.json(), [], 'viewer update must not return or modify a case');
+  if ([401, 403].includes(update.status)) {
+    // Explicit database denial is acceptable.
+  } else {
+    assert.equal(update.status, 200, `viewer update must be denied by authorization/RLS, got HTTP ${update.status}`);
+    assert.deepEqual(await update.json(), [], 'viewer update must not return a changed row');
+  }
+
+  const verifyViewerCase = await rest(viewer, 'satark_cases?' + new URLSearchParams({
+    select: 'id,status',
+    id: 'eq.' + viewerCaseId,
+    tenant_id: 'eq.' + tenantId,
+  }));
+  assert.equal(verifyViewerCase.status, 200, 'viewer should be able to verify their own fixture');
+  const unchangedViewerRows = await verifyViewerCase.json();
+  assert.equal(unchangedViewerRows.length, 1, 'viewer write probe must not delete the case');
+  assert.equal(unchangedViewerRows[0].status, 'open', 'viewer write probe must not change the case status');
 });
 
 test('cross-tenant evidence, findings, reports, case updates and deletes are denied', {
