@@ -123,6 +123,9 @@ jobs:
               raise SystemExit(f"Missing or empty project assets: {missing}")
           PY
 
+      - name: Validate Docker Compose environment template
+        run: node scripts/check-compose-env-example.mjs
+
       - name: Check source whitespace and accidental empty lines
         run: |
           python - <<'PY'
