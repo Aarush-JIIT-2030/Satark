@@ -51,9 +51,10 @@ After repair, confirm that versions `202610200004`, `20261018114039`, `202610200
 supabase db push --dry-run --linked
 ```
 
-**Expected dry-run after PR #174:** exactly these two pending repository migrations, in version order:
+**Expected dry-run after PR #174 and the current SATARK hardening branch:** exactly these three pending repository migrations, in version order:
 1. `20261020050000_satark_foreign_key_support_indexes.sql` — creates the five SATARK support indexes.
 2. `20261020051000_satark_rebind_membership_policies.sql` — rebinds six SATARK RLS policies from the revoked public wrapper to the private membership helper.
+3. `20261020052000_satark_private_approval_rpc_implementations.sql` — moves four authenticated approval/assignable-member SECURITY DEFINER implementations behind private-schema functions while preserving public SECURITY INVOKER RPC wrappers.
 
 If any other migration is listed, stop and reconcile the migration set before applying anything. Do not execute the repair or push commands unless the linked project is confirmed as `igqgtlmnwssjaoxkkzbm` and the dry-run matches exactly. If it matches, apply the two pending SATARK-only migrations and verify the resulting history:
 
