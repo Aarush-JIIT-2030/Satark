@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { readBoundedJson } from '@/lib/read-bounded-json';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_TOKEN = 8192;
+const MAX_SESSION_BODY_BYTES = 20 * 1024;
+const MAX_AUTH_RESPONSE_BYTES = 16 * 1024;
 const TOKEN_PATTERN = /^[A-Za-z0-9._~-]+$/;
 
 function response(body: unknown, status = 200) {
@@ -30,7 +34,7 @@ async function verify(accessToken: string) {
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
     if (!result.ok) return false;
-    const user: unknown = await result.json();
+    const user: unknown = await readBoundedResponseJson(result, MAX_AUTH_RESPONSE_BYTES);
     return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string';
   } catch { return false; }
 }
@@ -38,8 +42,9 @@ async function verify(accessToken: string) {
 export async function POST(request: Request) {
   const config = configured();
   if (!config) return response({ error: 'Authentication is not configured.' }, 503);
-  let input: unknown;
-  try { input = await request.json(); } catch { return response({ error: 'A valid JSON object is required.' }, 400); }
+  const parsed = await readBoundedJson(request, MAX_SESSION_BODY_BYTES);
+  if (!parsed.ok) return response({ error: parsed.error }, parsed.status);
+  const input: unknown = parsed.value;
   if (!input || typeof input !== 'object') return response({ error: 'A valid session is required.' }, 400);
   const data = input as Record<string, unknown>;
   const access = data.access_token;
