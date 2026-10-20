@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ async function getUserId(token: string, cfg: NonNullable<ReturnType<typeof confi
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     return user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id)
       ? user.id : null;
   } catch { return null; }
