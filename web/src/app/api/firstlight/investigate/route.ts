@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseText } from '@/lib/read-bounded-response.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -106,17 +107,23 @@ export async function POST(request: Request) {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ...(config.token ? { Authorization: 'Bearer ' + config.token } : {}),
+        Authorization: 'Bearer ' + config.token,
       },
       body: raw,
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(12_000),
     });
-    const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return reply({ error: 'Investigation service returned an oversized response.' }, 502);
+    const bounded = await readBoundedResponseText(response, MAX_BODY_BYTES);
+    if (!bounded.ok) {
+      return reply({
+        error: bounded.reason === 'too_large'
+          ? 'Investigation service returned an oversized response.'
+          : 'Investigation service returned an unreadable response.',
+      }, 502);
+    }
     let payload: unknown;
-    try { payload = JSON.parse(text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
+    try { payload = JSON.parse(bounded.text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
     if (!response.ok) {
       const message = payload && typeof payload === 'object' && 'detail' in payload && typeof payload.detail === 'string'
         ? payload.detail
