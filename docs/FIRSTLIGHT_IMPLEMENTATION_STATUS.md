@@ -52,7 +52,7 @@ This status describes repository-backed behavior and explicitly lists external c
 - Added Python agent-contract tests and CI coverage for the agent module. Added browser-source contract tests for duplicate handling and agent guardrails.
 - These deterministic/optional-agent changes are merged. PR #160's recorded API CI, general CI, Web CI, CodeQL and isolated migration validation passed. Model agents remain opt-in and advisory; the production Ollama configuration and behavior have not been verified.
 - The most recent production deployment lookup still reports an earlier SHA than the latest source changes. Exact latest-commit deployment, tenant-isolation credentials/results, browser/accessibility results and production smoke checks remain unverified.
-- Durable authenticated approval records and a safe, audited response-execution adapter remain incomplete. Existing session decisions must not be treated as durable approval or as proof that a live action occurred.
+- Durable approval records, decision/consumption RPCs, and policy guards exist in the database schema. The remaining gap is verified integration with a response executor and FIRSTLIGHT UI, plus real-tenant/recovery testing. Existing session decisions are not durable approvals, and no live action may be claimed without a verified execution record.
 
 ## Latest hardening update (2026-10-20)
 
@@ -60,19 +60,19 @@ This status describes repository-backed behavior and explicitly lists external c
 - Applied it to evidence-record, finding, and report write APIs, which previously relied on `Content-Length` plus `request.json()`; chunked requests now have an actual byte cap in these routes too.
 - Added a source-contract regression test covering the shared parser and all three route integrations.
 - These changes are committed to `main`; merged PR #160 and PR #170 checks passed on their exact PR heads. This does not establish that the current `main` SHA is deployed or that production browser behavior is verified.
-- Current `main` is not verified in production. Vercel previously rejected a fresh deployment with HTTP 402 `api-deployments-free-per-day`; deployment-list/runtime-error access is limited. Production browser behavior remains unverified.
+- Current `main` is not verified in production. The latest observed production deployment is older than `main`; the connected Vercel integration previously returned HTTP 403 for production-deployment permission, and runtime-error inspection was also denied. Production browser/API behavior remains unverified.
 
 ## Partially implemented
 
 | Capability | Current state | What is still missing |
 |---|---|---|
-| Multi-agent investigation | Six bounded deterministic stages now expose a versioned trace with case-specific input/output counts and evidence references; UI labels the stages accurately. | Independent model agents, schema-validated tool calls, shared run state, retry policy, per-agent evaluation, and bounded tool permissions. |
-| Suspicious activity detection | A small set of explainable rules and keyword checks; results link to evidence IDs. | Broader coverage, rule evaluation on validated live telemetry, test corpus, false-positive/negative evaluation and rule/version management. |
+| Multi-agent investigation | Six bounded deterministic stages expose a versioned evidence-grounded trace. Optional Ollama specialist calls for integrity, timeline, and detection analysis exist behind an explicit opt-in and strict schema/evidence-ID validation. | Independent model ensemble, tool-using agents, shared run state, retry policy, per-agent evaluation, calibrated performance metrics, and production Ollama validation. |
+| Suspicious activity detection | Versioned deterministic rule registry and explainable correlation rules link findings to evidence IDs; synthetic tests and evaluation corpus exist. | Broader coverage, evaluation on validated live telemetry, representative false-positive/negative measurements, and continuous rule/version governance. |
 | Evidence prioritization | New transparent heuristic ranks supplied records and flags integrity mismatches for quarantine/review. | Domain-validated weights, analyst-configurable policy, source-specific volatility decay, prioritization metrics and UI parity in the Next.js workflow. |
 | Timeline reconstruction | Sorts supplied timestamps and shows relationships/gaps. | Clock-skew handling, provenance/confidence per event, cross-source entity resolution and causal-relationship validation. |
 | Evidence integrity | Hashes protect against accidental/after-sealing changes relative to a stored baseline. | Trusted collector identity, signed manifests, independently anchored hashes, trusted timestamps and durable chain of custody. |
-| Case storage | A Supabase-backed evidence upload API and case-workspace components exist behind configuration/auth requirements. | End-to-end persisted FIRSTLIGHT case lifecycle, verified tenant policies, durable audit writes, retention and recovery tests. |
-| Live response adapters | Opt-in Microsoft Defender device isolation and Entra session revocation adapters exist separately. | Safe integration into FIRSTLIGHT's authenticated approval workflow, real-tenant testing, durable approval/result records and recovery drills. |
+| Case storage | Supabase-backed tenant/case/evidence/report storage, case assignment and notes, durable investigation jobs, approval records, audit events, and storage policies exist in code. | Reconcile live migration history, configure a real authorized test tenant/member, verify create/import/investigate/approve/export end-to-end, and run retention/backup/recovery drills. |
+| Live response adapters | Opt-in Microsoft Defender device-isolation and Entra session-revocation adapters exist separately; durable approval and consumption controls are present in the database. | Safe authenticated UI-to-executor integration, real-tenant validation, durable execution-result linkage, idempotent retry/rollback behavior, and recovery drills. Keep live actions disabled until these gates pass. |
 | Frontend/backend parity | The Next.js UI proxies to a shared FastAPI endpoint backed by `firstlight_engine.py`; Streamlit calls that same engine module directly. Local Compose includes the API service. | Configure the shared service for each deployment, persist case/audit state, and verify end-to-end behavior in CI and on the deployed environment. |
 
 ## Not implemented / not verified
@@ -81,7 +81,7 @@ This status describes repository-backed behavior and explicitly lists external c
 - Autonomous LLM agents that independently plan and call investigation tools.
 - Real-time ingestion or streaming telemetry pipeline.
 - Production-grade forensic chain of custody or independently immutable audit anchoring.
-- A fully connected persistent case lifecycle across create/import/investigate/approve/export.
+- A production-verified fully connected persistent case lifecycle across create/import/investigate/approve/export (the components exist in code, but live configuration and end-to-end verification remain outstanding).
 - Live response initiated from FIRSTLIGHT's own approval interface.
 - Firewall/network appliance blocking.
 - Verified integration against a dedicated Microsoft test tenant.
