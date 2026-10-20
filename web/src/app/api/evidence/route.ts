@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
+import { readBoundedBody } from '@/lib/read-bounded-json';
 import { inspectEvidenceFile } from '@/lib/evidence-signature.mjs';
 import { NextResponse } from 'next/server';
 
@@ -53,12 +54,26 @@ export async function POST(request: Request) {
   const user = await authenticate(token, config);
   if (!user) return error('Your session is invalid or expired.', 401);
 
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > MAX_FILE_BYTES + 64 * 1024) return error('File exceeds the 4 MiB upload limit.', 413);
+  const contentEncoding = request.headers.get('content-encoding');
+  if (contentEncoding && contentEncoding.toLowerCase() !== 'identity') {
+    return error('Compressed multipart uploads are not supported.', 415);
+  }
+  const boundedBody = await readBoundedBody(request, MAX_FILE_BYTES + 64 * 1024);
+  if (!boundedBody.ok) return error(boundedBody.error, boundedBody.status);
 
+  // Parse only the already-bounded bytes. Request.formData() on the original
+  // request would buffer an unbounded chunked body before file.size is checked.
+  const boundedHeaders = new Headers(request.headers);
+  boundedHeaders.delete('content-length');
+  boundedHeaders.delete('transfer-encoding');
   let form: FormData;
-  try { form = await request.formData(); }
-  catch { return error('A multipart file upload is required.', 400); }
+  try {
+    form = await new Request(request.url, {
+      method: 'POST',
+      headers: boundedHeaders,
+      body: boundedBody.bytes,
+    }).formData();
+  } catch { return error('A multipart file upload is required.', 400); }
 
   const file = form.get('file');
   const tenantId = String(form.get('tenant_id') || '');
