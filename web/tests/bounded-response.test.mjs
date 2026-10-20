@@ -56,3 +56,15 @@ test('FIRSTLIGHT proxy bounds authentication and investigation responses and val
   assert.match(source, /value\.limitations\.every/);
   assert.doesNotMatch(source, /await\s+response\.(?:text|json)\(\)/);
 });
+
+test('report retrieval has a bounded response, timeout, UUID validation, and integrity verification', async () => {
+  const source = await readFile(new URL('../src/app/api/reports/[id]/route.ts', import.meta.url), 'utf8');
+  assert.match(source, /readBoundedResponseText\(response,\s*MAX_REPORT_RESPONSE_BYTES\)/);
+  assert.match(source, /MAX_REPORT_RESPONSE_BYTES\s*=\s*2\s*\*\s*1024\s*\*\s*1024/);
+  assert.match(source, /AbortSignal\.timeout\(8_000\)/);
+  assert.match(source, /redirect:\s*'error'/);
+  assert.match(source, /UUID\.test\(id\)/);
+  assert.match(source, /SHA256\.test\(report\.snapshot_sha256\)/);
+  assert.match(source, /integrityMatches\s*\?\s*200\s*:\s*409/);
+  assert.doesNotMatch(source, /await\s+response\.(?:text|json)\(\)/);
+});
