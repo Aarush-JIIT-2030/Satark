@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "30 3 * * *"
   deployment_status:
+  pull_request:
+    paths:
+      - ".github/workflows/production-smoke.yml"
+      - "web/src/app/page.tsx"
 
 permissions:
   contents: read
@@ -16,8 +20,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+      - name: Validate production smoke marker against homepage source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "Every second matters. Every piece of evidence counts." web/src/app/page.tsx
+          grep -Fq 'check_route "/" "Every second matters\. Every piece of evidence counts\."' .github/workflows/production-smoke.yml
+
   smoke:
-    if: github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production'))
+    if: github.event_name != 'pull_request' && (github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
