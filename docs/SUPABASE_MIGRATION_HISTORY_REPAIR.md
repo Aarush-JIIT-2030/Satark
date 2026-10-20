@@ -16,7 +16,7 @@ A read-only migration-list check on 2026-10-20 found these relevant entries:
 - `20261020042449` — `satark_evidence_storage_dual_path_policy`: recorded.
 - `20261020044018` — `satark_storage_policy_private_helper_rebind`: recorded.
 - `20261020050000` — `satark_foreign_key_support_indexes`: not recorded. A read-only `pg_indexes` check also found the five SATARK support indexes from this migration absent in the live database.
-- `20261020051000` — `satark_rebind_membership_policies`: not recorded. This migration rebinds six approval, case-note, and investigation-job RLS policies to the private membership helper; PR #174's isolated migration, tenant-isolation, browser/accessibility, CI, and CodeQL checks passed before merge.
+- `20261020051000` — `satark_rebind_membership_policies`: not recorded. This migration rebinds six approval, case-note, and investigation-job RLS policies to the private membership helper; PR #174's isolated migration, tenant-isolation, browser/accessibility, CI, and CodeQL checks passed before merge. A read-only live audit still finds all six policies referencing the revoked public wrapper, so these operations may fail closed until the controlled repair and push are completed.
 
 The live private helper, ACLs, and final storage policies have been verified read-only. The later recorded migrations establish the intended final policy. The repository migration `202610200004` remains available for clean database resets; do not change it to a no-op. The repository migration `20261020042000` is already a no-op because the canonical policy was applied under `20261020044018`. The duplicate version `20261020043000` was removed from the repository in PR #164 and is not part of the repair command.
 
