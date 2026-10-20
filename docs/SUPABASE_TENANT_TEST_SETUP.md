@@ -114,7 +114,7 @@ where t.id in (
 order by t.id;
 ```
 
-Confirm that exactly the three intended tenants are returned and that each has its intended owner/viewer membership, case, note, queued job, and pending simulation-only approval. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
+Confirm exactly three tenant rows are returned and each row reports `memberships = 1`, `cases = 1`, `notes = 1`, `jobs = 1`, and `approvals = 1`. The seed is safe to re-run: case fixtures are normalized and child fixtures use stable IDs with conflict-ignore semantics. These fixture IDs are stable so CI secrets can be configured once; they are not production identifiers.
 
 ## 3. Configure GitHub Actions secrets
 
