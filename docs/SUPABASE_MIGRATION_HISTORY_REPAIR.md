@@ -22,6 +22,17 @@ The live private helper, ACLs, and final storage policies have been verified rea
 
 The live SATARK tenant, membership, case, evidence, finding, report, audit-event, ingestion-checkpoint, investigation-job, case-note and approval tables currently contain zero rows. Do not add fake production rows to test the application.
 
+## Security-advisor status (read-only check, 2026-10-20)
+
+The two RPCs previously reported as exposed `SECURITY DEFINER` functions are hardened in the live shared database, and their migration files are tracked in this branch:
+
+- `20261018114205_harden_satark_audit_verification_rpc`: the public `satark_verify_audit_chain(uuid)` function is a `SECURITY INVOKER` wrapper; the private implementation uses an empty fixed `search_path` and checks membership in the requested tenant.
+- `20261018114247_harden_satark_tenant_creation_rpc`: the public `satark_create_tenant(text)` function is a `SECURITY INVOKER` wrapper; the private implementation derives the owner from `auth.uid()`, validates the name, creates the owner membership, and appends the audit event atomically.
+
+Read-only privilege checks confirmed that authenticated callers can execute the public wrappers, anonymous callers cannot, and both private implementations use an empty fixed `search_path`. The latest shared-project security-advisor response did not include these two wrappers.
+
+This does **not** mean the shared multi-application project's entire security-advisor output is clean. The same read-only check still reported 13 other authenticated `SECURITY DEFINER` RPC findings, including four SATARK approval/assignable-member RPCs and functions belonging to other applications sharing the database. Those findings need their own behavior-preserving review; do not blanket-revoke them or modify Nirdhoom/Saathi functions as part of this migration-history repair. The `satark_ingestion_checkpoints` RLS informational finding was also reviewed: the table has RLS enabled/forced and no grants to `anon` or `authenticated`, so it remains server-only.
+
 ## Required operator procedure
 
 From a trusted checkout, explicitly confirm that the linked project is `igqgtlmnwssjaoxkkzbm` before running any repair:
