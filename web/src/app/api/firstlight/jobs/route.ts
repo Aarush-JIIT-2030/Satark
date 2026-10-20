@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { readBoundedJson } from '@/lib/read-bounded-json';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,7 @@ async function authenticate(request: Request, cfg: NonNullable<ReturnType<typeof
       headers: { apikey: cfg.key, Authorization: 'Bearer ' + match[1], Accept: 'application/json' },
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
-    const user: unknown = response.ok ? await response.json() : null;
+    const user: unknown = response.ok ? await readBoundedResponseJson(response) : null;
     if (!user || typeof user !== 'object' || !('id' in user) ||
         typeof user.id !== 'string' || !UUID.test(user.id)) {
       return { token: null, userId: null, error: reply({ error: 'Your session is invalid or expired.' }, 401) };
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return reply({ error: 'Analyst, responder, or owner access to this case is required.' }, 403);
     if (!response.ok) return reply({ error: 'The investigation job could not be queued. Verify case access and database migration status.' }, 503);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) {
       // Ignore-duplicate intentionally returns no representation. Look up the
       // same idempotency key with the same user token; RLS scopes the result.
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
         cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000),
       });
       if (!existing.ok) return reply({ error: 'Job was queued but its status could not be read.' }, 503);
-      const found: unknown = await existing.json();
+      const found: unknown = await readBoundedResponseJson(existing);
       if (!Array.isArray(found) || !found[0]) return reply({ error: 'Job status is not yet available.' }, 503);
       return reply({ job: found[0], idempotent_replay: true }, 200);
     }
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return reply({ error: 'Workspace access denied.' }, 403);
     if (!response.ok) return reply({ error: 'Job status is temporarily unavailable.' }, 503);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) return reply({ error: 'Job not found.' }, 404);
     return reply({ job: rows[0] });
   } catch {

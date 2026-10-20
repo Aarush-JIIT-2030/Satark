@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { NextResponse } from 'next/server';
 import { readBoundedJson } from '@/lib/read-bounded-json';
 export const runtime = 'nodejs';
@@ -20,7 +21,7 @@ async function auth(request: Request, cfg: {url:string;key:string}) {
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 4000);
   try {
     const response = await fetch(cfg.url + '/auth/v1/user', { headers: { apikey: cfg.key, Authorization: 'Bearer ' + match[1] }, cache: 'no-store', redirect: 'error', signal: controller.signal });
-    const user: unknown = response.ok ? await response.json() : null;
+    const user: unknown = response.ok ? await readBoundedResponseJson(response) : null;
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) return { token: null, userId: null, error: reply({ error: 'Your session is invalid or expired.' }, 401) };
     return { token: match[1], userId: user.id, error: null };
   } catch { return { token: null, userId: null, error: reply({ error: 'Authentication service is temporarily unavailable.' }, 503) }; }
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     const response = await fetch(cfg.url+'/rest/v1/satark_reports?'+query,{headers:{apikey:cfg.key,Authorization:'Bearer '+a.token},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8_000)});
     if (response.status===401||response.status===403) return reply({error:'Workspace access denied.'},403);
     if (!response.ok) return reply({error:'Report storage is temporarily unavailable.'},503);
-    return reply({reports:await response.json()});
+    return reply({reports:await readBoundedResponseJson(response)});
   } catch { return reply({error:'Report storage is temporarily unavailable.'},503); }
 }
 export async function POST(request: Request) {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     });
     if(response.status===401||response.status===403)return reply({error:'You do not have permission to save this report.'},403);
     if(!response.ok)return reply({error:'Report could not be saved. Verify case access and retry.'},422);
-    const rows:unknown=await response.json();if(!Array.isArray(rows)||!rows[0])return reply({error:'Report storage returned an invalid response.'},502);
+    const rows:unknown=await readBoundedResponseJson(response);if(!Array.isArray(rows)||!rows[0])return reply({error:'Report storage returned an invalid response.'},502);
     return reply({report:rows[0],snapshot_sha256:snapshotSha},201);
   }catch{return reply({error:'Report storage is temporarily unavailable.'},503);}
 }
