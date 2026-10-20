@@ -1,33 +1,25 @@
 # FIRSTLIGHT implementation status
 
-Last reviewed: 2026-10-20
+Last reviewed: 2026-10-20 (UTC)
 
-## Fresh deployment check (2026-10-20 05:13 UTC)
+## Current source and release status
 
-- Current main: `e7dd7deceb4eebd7d538ed70b6a083383a8b069b` (local Compose Supabase-auth configuration fix).
-- Latest observed production deployment: `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`, READY, target `production`, source SHA `08983cd9c88b1cab91ea800577b2ddc291549250`. Production is one commit behind current main.
-- Attempting to deploy current main through the connected Vercel integration returned HTTP 403 because production-deployment permission is not available. Do not try to bypass this permission boundary.
-- Runtime-error inspection returned 403; direct browser smoke could not access the protected app. Deployment readiness does not establish live API or investigation workflow behavior.
-- The last known environment inventory lacked the FIRSTLIGHT API URL/token, Wazuh sync token/Indexer credentials, and private worker configuration. The current inventory could not be re-read. No authorized Wazuh lab endpoint or SATARK tenant/case/actor is available, so live ingestion and worker recovery remain unverified.
-- **Release decision remains NO-GO** until production configuration, identity, provider, worker-recovery, and evidence-verification gates pass. No hosted migration or synthetic production data was applied.
+- Current `main` after PR #174: `7f426fe793ab78375094111b7fed8462e669e018` (`Fix SATARK policies using revoked membership helper`).
+- PR #174 merged after its exact-head CI, CodeQL, isolated Supabase migration validation, tenant-isolation integration, and browser/accessibility smoke checks passed. The post-merge `main` CI (including browser/accessibility and tenant-isolation jobs), CodeQL, and clean-database migration/security regression workflow also passed on `7f426fe793ab78375094111b7fed8462e669e018`.
+- PR #173 is also merged: successful empty Wazuh query windows advance the durable checkpoint to the drained window boundary, while failed polls preserve the prior cursor. Its API regression tests, CodeQL, web validation, and browser/accessibility smoke passed.
+- The latest observed Vercel production deployment remains `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`, READY at source SHA `08983cd9c88b1cab91ea800577b2ddc291549250`, which is older than current `main`. The connected Vercel integration previously returned HTTP 403 for production deployment permission, and the latest Vercel bot check reports `api-deployments-free-per-day` (over 100 deployments in 24 hours). Do not bypass the permission boundary or repeatedly retry deployment while the quota is exhausted; wait for the quota window to reset or have the project owner change the plan. A READY preview is not proof of production release.
+- The current Vercel environment-variable inventory contains Supabase settings, Upstash settings, and optional Ollama settings, but no `FIRSTLIGHT_API_URL`, `FIRSTLIGHT_API_TOKEN`, `FIRSTLIGHT_WAZUH_SYNC_TOKEN`, Wazuh Indexer credentials, or private worker-host configuration. No authorized Wazuh lab endpoint or SATARK tenant/case/member/actor is available.
+- Read-only inspection of the approved shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) confirms all 11 SATARK tables have RLS enabled and currently contain zero rows. The project also hosts Nirdhoom and Saathi; do not reset it or create fake production data.
+- A read-only live policy audit confirms six approval, case-note, and investigation-job policies still reference `public.satark_has_membership`, whose EXECUTE grant is revoked for authenticated users. These operations can fail closed until migration `20261020051000` is applied. The checkpoint table's no-policy advisor finding is intentional: `anon` and `authenticated` have no table privileges, and the private worker uses service-role access.
+- Migration history still needs the guarded operator repair described in `docs/SUPABASE_MIGRATION_HISTORY_REPAIR.md`. The expected pending repository migrations after that repair are now two: `20261020050000_satark_foreign_key_support_indexes.sql` and `20261020051000_satark_rebind_membership_policies.sql`. Do not run a broad `supabase db push`; confirm the linked project and exact dry-run first.
+- **Release decision: NO-GO for production use** despite passing post-merge CI: migration history must be reconciled and the exact pending-migration dry-run verified; an authorized operator must restore production-deployment permission; required API/Wazuh configuration and a private worker must be provisioned; and an authorized real end-to-end ingestion-to-report test plus recovery/backup verification must succeed. Keep live response actions disabled.
 
-
-## Current source and release status (updated after PR #170)
-
-- PR #160, **FIRSTLIGHT: persistent Wazuh ingestion and case investigation workflows**, is merged to `main`. Its latest observed pull-request checks passed: FIRSTLIGHT API CI, general CI, Web CI, CodeQL, and isolated Supabase migration validation.
-- PR #159's SATARK storage-policy helper fix is also merged, and its CI, CodeQL, isolated migration reset, tenant-isolation integration, and browser/accessibility smoke jobs passed on that PR head.
-- PR #161 and PR #164 are merged. The live history records `20261018114039`, `20261020042449` and `20261020044018`, but is missing `202610200004`, `20261020042000`, and `20261020050000`. PR #164 removed the duplicate `20261020043000` file. Read-only checks also found the five indexes from `20261020050000_satark_foreign_key_support_indexes.sql` absent from the live schema. PR #171 updates the guarded operator runbook; do not push until the two superseded versions are repaired and a dry-run proves the index migration is the sole pending migration.
-- The latest project-scoped Vercel deployment listing shows a READY production deployment at SHA `08983cd9c88b1cab91ea800577b2ddc291549250` (deployment `dpl_5YfZ4vrLfMw9XYjbayKZkJwubrAL`). Current `main` is now `e7dd7deceb4eebd7d538ed70b6a083383a8b069b`, one commit ahead; the connected integration denied permission to deploy that current SHA. Runtime-error inspection and direct browser smoke are blocked, so production functionality is not verified.
-- No real Wazuh endpoint/credentials or authorized SATARK tenant/case/member/actor is configured. The worker, durable job queue, and simulation-only approval schema exist in code, but real Wazuh-to-persisted-case-to-investigation-to-report execution, worker hosting/restart recovery, backup restoration, and production smoke verification remain blocked.
-- Keep real response actions disabled. A passing CI suite proves the checked code paths only; it does not establish live-provider, tenant-isolation, operational recovery, or production readiness.
-
-
-This status describes repository-backed behavior, not planned features or unverified live integrations.
+This status describes repository-backed behavior and explicitly lists external configuration gates; passing CI does not prove live-provider or production readiness.
 
 ## Current verified release-gate status (2026-10-20)
 
-- The Wazuh checkpoint migration is applied to the approved shared Supabase project `nihdhoom` after inspecting the existing SATARK schema, migration history, foreign keys, existing Wazuh evidence, and index conflicts. The checkpoint table has forced RLS with no `anon`/`authenticated` privileges; the duplicate-protection index is present. No Nirdhoom or Saathi tables/data were modified.
-- The live project currently has zero SATARK tenants, cases, memberships, evidence records, and ingestion checkpoints. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
+- The Wazuh checkpoint migration is applied to the approved shared Supabase project `nihdhoom` after inspecting the existing SATARK schema, migration history, foreign keys, existing Wazuh evidence, and index conflicts. The checkpoint table has forced RLS with no `anon`/`authenticated` privileges; the duplicate-protection index is present. Its no-policy advisor notice is intentional because only the private worker/service role should access it. No Nirdhoom or Saathi tables/data were modified.
+- Read-only table inspection confirms the live project currently has zero rows in all 11 SATARK data tables, including tenants, memberships, cases, evidence, ingestion checkpoints, investigation jobs, case notes, and approvals. The private `satark-evidence` bucket exists with a 4 MiB object limit. Do not create fake production tenant/case/user records to bypass this gate.
 - The investigation API fails closed when `FIRSTLIGHT_API_TOKEN` is missing or shorter than 32 characters. The Next.js proxy requires the strong token even for local HTTP. The worker and authenticated source-download route enforce the bucket's 4 MiB object limit. PR #170 also fixes local Compose Supabase auth configuration; its recorded API CI, general CI, Web CI, CodeQL and browser/accessibility smoke checks passed. Its tenant-isolation job reported success but skipped the live-account test step.
 - Added a versioned deterministic rule registry (`firstlight_rules.py`, version `1.0.0`) with stable rule IDs, cautious candidate ATT&CK mappings and rule limitations. Its API container copy and CI path triggers were updated.
 - The Wazuh integration is merged in PR #160; its FIRSTLIGHT API CI, CodeQL, general CI, Web CI, and isolated migration validation passed on that PR head. PR #161 and PR #164 storage-policy cleanup checks passed; PR #167's object-key regression test and PR #168's SATARK foreign-key indexes also passed their exact-head CI, Web CI, CodeQL and isolated migration checks.
@@ -62,7 +54,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Added Python agent-contract tests and CI coverage for the agent module. Added browser-source contract tests for duplicate handling and agent guardrails.
 - These deterministic/optional-agent changes are merged. PR #160's recorded API CI, general CI, Web CI, CodeQL and isolated migration validation passed. Model agents remain opt-in and advisory; the production Ollama configuration and behavior have not been verified.
 - The most recent production deployment lookup still reports an earlier SHA than the latest source changes. Exact latest-commit deployment, tenant-isolation credentials/results, browser/accessibility results and production smoke checks remain unverified.
-- Durable authenticated approval records and a safe, audited response-execution adapter remain incomplete. Existing session decisions must not be treated as durable approval or as proof that a live action occurred.
+- Durable approval records, decision/consumption RPCs, and policy guards exist in the database schema. The remaining gap is verified integration with a response executor and FIRSTLIGHT UI, plus real-tenant/recovery testing. Existing session decisions are not durable approvals, and no live action may be claimed without a verified execution record.
 
 ## Latest hardening update (2026-10-20)
 
@@ -70,19 +62,19 @@ This status describes repository-backed behavior, not planned features or unveri
 - Applied it to evidence-record, finding, and report write APIs, which previously relied on `Content-Length` plus `request.json()`; chunked requests now have an actual byte cap in these routes too.
 - Added a source-contract regression test covering the shared parser and all three route integrations.
 - These changes are committed to `main`; merged PR #160 and PR #170 checks passed on their exact PR heads. This does not establish that the current `main` SHA is deployed or that production browser behavior is verified.
-- Current `main` is not verified in production. Vercel previously rejected a fresh deployment with HTTP 402 `api-deployments-free-per-day`; deployment-list/runtime-error access is limited. Production browser behavior remains unverified.
+- Current `main` is not verified in production. The latest observed production deployment is older than `main`; the connected Vercel integration previously returned HTTP 403 for production-deployment permission, and runtime-error inspection was also denied. Production browser/API behavior remains unverified.
 
 ## Partially implemented
 
 | Capability | Current state | What is still missing |
 |---|---|---|
-| Multi-agent investigation | Six bounded deterministic stages now expose a versioned trace with case-specific input/output counts and evidence references; UI labels the stages accurately. | Independent model agents, schema-validated tool calls, shared run state, retry policy, per-agent evaluation, and bounded tool permissions. |
-| Suspicious activity detection | A small set of explainable rules and keyword checks; results link to evidence IDs. | Broader coverage, rule evaluation on validated live telemetry, test corpus, false-positive/negative evaluation and rule/version management. |
+| Multi-agent investigation | Six bounded deterministic stages expose a versioned evidence-grounded trace. Optional Ollama specialist calls for integrity, timeline, and detection analysis exist behind an explicit opt-in and strict schema/evidence-ID validation. | Independent model ensemble, tool-using agents, shared run state, retry policy, per-agent evaluation, calibrated performance metrics, and production Ollama validation. |
+| Suspicious activity detection | Versioned deterministic rule registry and explainable correlation rules link findings to evidence IDs; synthetic tests and evaluation corpus exist. | Broader coverage, evaluation on validated live telemetry, representative false-positive/negative measurements, and continuous rule/version governance. |
 | Evidence prioritization | New transparent heuristic ranks supplied records and flags integrity mismatches for quarantine/review. | Domain-validated weights, analyst-configurable policy, source-specific volatility decay, prioritization metrics and UI parity in the Next.js workflow. |
 | Timeline reconstruction | Sorts supplied timestamps and shows relationships/gaps. | Clock-skew handling, provenance/confidence per event, cross-source entity resolution and causal-relationship validation. |
 | Evidence integrity | Hashes protect against accidental/after-sealing changes relative to a stored baseline. | Trusted collector identity, signed manifests, independently anchored hashes, trusted timestamps and durable chain of custody. |
-| Case storage | A Supabase-backed evidence upload API and case-workspace components exist behind configuration/auth requirements. | End-to-end persisted FIRSTLIGHT case lifecycle, verified tenant policies, durable audit writes, retention and recovery tests. |
-| Live response adapters | Opt-in Microsoft Defender device isolation and Entra session revocation adapters exist separately. | Safe integration into FIRSTLIGHT's authenticated approval workflow, real-tenant testing, durable approval/result records and recovery drills. |
+| Case storage | Supabase-backed tenant/case/evidence/report storage, case assignment and notes, durable investigation jobs, approval records, audit events, and storage policies exist in code. | Reconcile live migration history, configure a real authorized test tenant/member, verify create/import/investigate/approve/export end-to-end, and run retention/backup/recovery drills. |
+| Live response adapters | Opt-in Microsoft Defender device-isolation and Entra session-revocation adapters exist separately; durable approval and consumption controls are present in the database. | Safe authenticated UI-to-executor integration, real-tenant validation, durable execution-result linkage, idempotent retry/rollback behavior, and recovery drills. Keep live actions disabled until these gates pass. |
 | Frontend/backend parity | The Next.js UI proxies to a shared FastAPI endpoint backed by `firstlight_engine.py`; Streamlit calls that same engine module directly. Local Compose includes the API service. | Configure the shared service for each deployment, persist case/audit state, and verify end-to-end behavior in CI and on the deployed environment. |
 
 ## Not implemented / not verified
@@ -91,7 +83,7 @@ This status describes repository-backed behavior, not planned features or unveri
 - Autonomous LLM agents that independently plan and call investigation tools.
 - Real-time ingestion or streaming telemetry pipeline.
 - Production-grade forensic chain of custody or independently immutable audit anchoring.
-- A fully connected persistent case lifecycle across create/import/investigate/approve/export.
+- A production-verified fully connected persistent case lifecycle across create/import/investigate/approve/export (the components exist in code, but live configuration and end-to-end verification remain outstanding).
 - Live response initiated from FIRSTLIGHT's own approval interface.
 - Firewall/network appliance blocking.
 - Verified integration against a dedicated Microsoft test tenant.
@@ -168,3 +160,21 @@ This status describes repository-backed behavior, not planned features or unveri
 - Redacted Wazuh worker error output to stable error categories so provider exception text, URLs, or credentials cannot be copied into logs/checkpoints. Added a regression test for secret-bearing exceptions.
 
 **Still blocked from a genuine end-to-end release:** no authorized Wazuh Indexer endpoint/credentials or enrolled lab agent is configured; the live shared project has no SATARK tenant/case/member/actor records; real Supabase tenant-isolation tests need dedicated least-privilege test identities; Vercel's deployment quota currently blocks a fresh deploy and the production SHA is older than main. No evidence-object backup/restore drill, real Wazuh-to-UI smoke test, or real response executor has been verified. Keep live response disabled and do not mark this branch production-ready.
+
+## Follow-up hardening verified in source and shared schema (2026-10-20)
+
+- Durable approval records are constrained to the `simulation.*` action namespace and `action_payload.mode = 'simulation'`. RLS/FORCE RLS, member-read/request policies, immutable request parameters, non-self-approval, expiry checks, one-time consumption, and transactional hash-chain audit entries are present. Read-only live inspection found zero approval rows and no non-simulation approval rows.
+- Approval migration filenames were reconciled with the live history versions `20261020035814`, `20261020035832`, `20261020035848`, and `20261020040028`. The trigger-only approval guard function no longer grants EXECUTE to `anon`, `authenticated`, or `service_role`.
+- The approval API accepts only the explicit simulation action namespace and requires a simulation-mode payload before persistence. No live endpoint action is enabled by these approval records.
+- The FIRSTLIGHT worker image includes the deterministic engine and versioned rule registry imported at runtime. Worker exceptions are reduced to stable error categories so provider exception text, URLs, and credentials are not copied into logs/checkpoints; regression coverage exercises secret-bearing exceptions.
+- Local Compose wires optional Ollama configuration through `OLLAMA_BASE_URL` and `FIRSTLIGHT_OLLAMA_MODEL`, with `FIRSTLIGHT_MODEL_AGENTS_ENABLED=false` by default. Model assistance remains advisory and is not required for deterministic findings.
+
+## Latest verification and remaining live gate (2026-10-20)
+
+- PR #173 is merged: successful empty Wazuh polling windows advance the durable checkpoint to the completed query-window boundary; failed polls preserve the previous cursor. Its FIRSTLIGHT API tests, CodeQL, web validation, and browser/accessibility smoke passed.
+- PR #174 is merged with migration `20261020051000_satark_rebind_membership_policies.sql` and 43 pgTAP assertions. Its exact-head isolated clean-database migration workflow passed, as did post-merge `main` CI (including browser/accessibility and tenant-isolation jobs), CodeQL, and clean-database migration/security regression on `7f426fe793ab78375094111b7fed8462e669e018`.
+- A read-only live audit still finds six approval, case-note, and investigation-job policies referencing the revoked public membership wrapper. Migration `20261020051000` has **not** been applied to the hosted database. Authenticated users lack EXECUTE on the public wrapper, so affected operations can fail closed until the controlled migration-history repair and SATARK-only push are completed.
+- The migration repair procedure is documented in `docs/SUPABASE_MIGRATION_HISTORY_REPAIR.md`. The connected Supabase tools do not expose `supabase migration repair`; run it only from a trusted CLI environment after confirming the linked project ID and exact dry-run. After PR #174, the expected pending migrations are the SATARK support-index migration `20261020050000` and policy rebind `20261020051000`. Stop if the dry-run lists anything else.
+- The no-policy advisor notice for `satark_ingestion_checkpoints` is intentional: read-only ACL inspection confirms `anon` and `authenticated` have no table privileges, while the private worker uses service-role access. Do not add user-facing policies to this checkpoint table.
+- Live SATARK tables still contain zero tenants, memberships, cases, evidence records, jobs, and approvals. No authorized Wazuh endpoint/credentials or real test actor/case is configured. The tenant-isolation workflow passed its CI job, but its real-account test step is skipped when dedicated least-privilege test credentials are unavailable; this is not evidence of live tenant-isolation success.
+- The latest observed production deployment is older than `main`. The connected Vercel integration denied production-deployment permission with HTTP 403; an earlier deployment attempt also hit the free-plan daily deployment quota. Do not bypass either permission/quota gate. Production readiness remains **NO-GO** until the hosted migration repair is completed, the exact deployed SHA is verified, and a real authorized Wazuh-to-case-to-investigation-to-report flow plus worker recovery/backup restoration is demonstrated.
