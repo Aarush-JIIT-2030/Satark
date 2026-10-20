@@ -161,33 +161,35 @@ test('tenant owners can read and update cases in their own tenant', {
     const originalTitle = fixture.title;
     const updatedTitle = originalTitle + ' [authorized update probe ' + label + ' ' + Date.now() + ']';
 
-    const update = await rest(session, 'satark_cases?' + new URLSearchParams({
-      id: 'eq.' + fixture.id,
-      tenant_id: 'eq.' + tenantId,
-    }), {
-      method: 'PATCH',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ title: updatedTitle }),
-    });
-    assert.equal(update.status, 200, 'tenant owner should be able to update a case in their own tenant');
-    const updatedRows = await update.json();
-    assert.equal(updatedRows.length, 1, 'same-tenant update should return exactly the updated case');
-    assert.equal(updatedRows[0].title, updatedTitle, 'same-tenant update should persist the change');
-
-    // Restore the fixture so repeated CI runs remain deterministic and do not
-    // accumulate mutations in the dedicated test database.
-    const restore = await rest(session, 'satark_cases?' + new URLSearchParams({
-      id: 'eq.' + fixture.id,
-      tenant_id: 'eq.' + tenantId,
-    }), {
-      method: 'PATCH',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ title: originalTitle }),
-    });
-    assert.equal(restore.status, 200, 'tenant owner should be able to restore the disposable fixture');
-    const restoredRows = await restore.json();
-    assert.equal(restoredRows.length, 1, 'fixture restoration should update exactly one case');
-    assert.equal(restoredRows[0].title, originalTitle, 'fixture title should be restored after the probe');
+    try {
+      const update = await rest(session, 'satark_cases?' + new URLSearchParams({
+        id: 'eq.' + fixture.id,
+        tenant_id: 'eq.' + tenantId,
+      }), {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ title: updatedTitle }),
+      });
+      assert.equal(update.status, 200, 'tenant owner should be able to update a case in their own tenant');
+      const updatedRows = await update.json();
+      assert.equal(updatedRows.length, 1, 'same-tenant update should return exactly the updated case');
+      assert.equal(updatedRows[0].title, updatedTitle, 'same-tenant update should persist the change');
+    } finally {
+      // Restore even if an assertion fails so a failed CI attempt cannot leave
+      // a mutated fixture that makes later runs nondeterministic.
+      const restore = await rest(session, 'satark_cases?' + new URLSearchParams({
+        id: 'eq.' + fixture.id,
+        tenant_id: 'eq.' + tenantId,
+      }), {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ title: originalTitle }),
+      });
+      assert.equal(restore.status, 200, 'tenant owner should be able to restore the disposable fixture');
+      const restoredRows = await restore.json();
+      assert.equal(restoredRows.length, 1, 'fixture restoration should update exactly one case');
+      assert.equal(restoredRows[0].title, originalTitle, 'fixture title should be restored after the probe');
+    }
   }
 });
 
