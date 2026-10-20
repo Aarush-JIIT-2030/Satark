@@ -62,3 +62,33 @@ test('SATARK membership-policy repair rebinds all six policies to the private he
   assert.match(sql, /status\s*=\s*'queued'/i,
     'investigation jobs must start queued');
 });
+
+test('audit-verification RPC keeps the exposed wrapper invoker-only', () => {
+  const sql = migration('20261018114205_harden_satark_audit_verification_rpc.sql');
+  assert.match(sql, /create\s+or\s+replace\s+function\s+satark_private\.verify_audit_chain[\s\S]*?security\s+definer\s+set\s+search_path\s*=\s*''/i,
+    'private audit verifier must remain SECURITY DEFINER with an empty search_path');
+  assert.match(sql, /create\s+or\s+replace\s+function\s+public\.satark_verify_audit_chain[\s\S]*?language\s+plpgsql\s+set\s+search_path\s*=\s*''[\s\S]*?return\s+query\s+select\s+\*\s+from\s+satark_private\.verify_audit_chain/i,
+    'public audit verifier must be an invoker wrapper around the private implementation');
+  assert.match(sql, /revoke\s+all\s+on\s+function\s+public\.satark_verify_audit_chain\(uuid\)\s+from\s+public,\s*anon/i);
+  assert.match(sql, /grant\s+execute\s+on\s+function\s+public\.satark_verify_audit_chain\(uuid\)\s+to\s+authenticated/i);
+  assert.doesNotMatch(sql, /create\s+or\s+replace\s+function\s+public\.satark_verify_audit_chain[\s\S]*?security\s+definer/i,
+    'exposed audit RPC must not be SECURITY DEFINER');
+});
+
+test('tenant-creation RPC preserves authenticated ownership and an invoker-only public wrapper', () => {
+  const sql = migration('20261018114247_harden_satark_tenant_creation_rpc.sql');
+  assert.match(sql, /create\s+or\s+replace\s+function\s+satark_private\.create_tenant[\s\S]*?security\s+definer\s+set\s+search_path\s*=\s*''/i,
+    'private tenant creator must remain SECURITY DEFINER with an empty search_path');
+  assert.match(sql, /actor\s+uuid\s*:=\s*auth\.uid\(\)/i,
+    'tenant ownership must derive from the authenticated actor');
+  assert.match(sql, /insert\s+into\s+public\.satark_memberships\s*\(tenant_id,\s*user_id,\s*role\)[\s\S]*?values\s*\(created_tenant,\s*actor,\s*'owner'\)/i,
+    'creator must grant ownership only to the authenticated actor');
+  assert.match(sql, /insert\s+into\s+public\.satark_audit_events/i,
+    'tenant creation must append its audit event atomically');
+  assert.match(sql, /create\s+or\s+replace\s+function\s+public\.satark_create_tenant[\s\S]*?language\s+plpgsql\s+set\s+search_path\s*=\s*''[\s\S]*?return\s+satark_private\.create_tenant\(tenant_name\)/i,
+    'public tenant creator must be an invoker wrapper');
+  assert.match(sql, /revoke\s+all\s+on\s+function\s+public\.satark_create_tenant\(text\)\s+from\s+public,\s*anon/i);
+  assert.match(sql, /grant\s+execute\s+on\s+function\s+public\.satark_create_tenant\(text\)\s+to\s+authenticated/i);
+  assert.doesNotMatch(sql, /create\s+or\s+replace\s+function\s+public\.satark_create_tenant[\s\S]*?security\s+definer/i,
+    'exposed tenant creation RPC must not be SECURITY DEFINER');
+});
