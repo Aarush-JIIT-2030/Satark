@@ -11,12 +11,15 @@ The shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) hosts SATARK alo
 A read-only migration-list check on 2026-10-20 found these relevant entries:
 
 - `20261018114039` — `isolate_satark_membership_helper`: recorded.
+- `20261018114205` — `harden_satark_audit_verification_rpc`: recorded in the live ledger and now included in the repository migration history by the RPC-hardening PR. The migration keeps the public audit-verification function as a `SECURITY INVOKER` wrapper.
+- `20261018114247` — `harden_satark_tenant_creation_rpc`: recorded in the live ledger and now included in the repository migration history by the RPC-hardening PR. The migration keeps the public tenant-creation function as a `SECURITY INVOKER` wrapper.
 - `202610200004` — `satark_storage_policy_membership_hardening`: not recorded.
 - `20261020042000` — `satark_storage_policy_private_helper_rebind`: not recorded (repository file is a no-op; canonical policy was applied under `20261020044018`).
 - `20261020042449` — `satark_evidence_storage_dual_path_policy`: recorded.
 - `20261020044018` — `satark_storage_policy_private_helper_rebind`: recorded.
 - `20261020050000` — `satark_foreign_key_support_indexes`: not recorded. A read-only `pg_indexes` check also found the five SATARK support indexes from this migration absent in the live database.
 - `20261020051000` — `satark_rebind_membership_policies`: not recorded. This migration rebinds six approval, case-note, and investigation-job RLS policies to the private membership helper; PR #174's isolated migration, tenant-isolation, browser/accessibility, CI, and CodeQL checks passed before merge. A read-only live audit still finds all six policies referencing the revoked public wrapper, so these operations may fail closed until the controlled repair and push are completed.
+- `20261020052000` — `satark_private_approval_rpc_implementations`: not recorded. The repository migration moves four approval/assignment `SECURITY DEFINER` implementations into the non-exposed `satark_private` schema and leaves `public` functions as `SECURITY INVOKER` wrappers. A read-only security-advisor check on 2026-10-20 still reports these four public RPCs as callable `SECURITY DEFINER` functions in the shared live database. Apply only after the linked migration list and dry-run are verified as described below.
 
 The live private helper, ACLs, and final storage policies have been verified read-only. The later recorded migrations establish the intended final policy. The repository migration `202610200004` remains available for clean database resets; do not change it to a no-op. The repository migration `20261020042000` is already a no-op because the canonical policy was applied under `20261020044018`. The duplicate version `20261020043000` was removed from the repository in PR #164 and is not part of the repair command.
 
@@ -92,4 +95,4 @@ Expected privilege values are `true, false, false, false`. The read policy must 
 
 ## Boundary
 
-This is an operator-run history repair, not a live migration. Migration `20261020044018` was applied after isolated validation and verified read-only; no migration-history repair has been performed. The connected tools can inspect migrations and run read-only SQL but do not expose the Supabase CLI `migration repair` command. The repair must be run from a trusted CLI environment with the project explicitly linked.
+This is an operator-run history repair, not a live migration. Migration `20261020044018` was applied after isolated validation and verified read-only; no migration-history repair has been performed. The connected tools can inspect migrations and run read-only SQL but do not expose the Supabase CLI `migration repair` command. The expected pending migration list includes `20261020052000_satark_private_approval_rpc_implementations.sql` only after that migration is merged to `main`. The repair must be run from a trusted CLI environment with the project explicitly linked.

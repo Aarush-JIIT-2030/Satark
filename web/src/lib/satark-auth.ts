@@ -59,9 +59,10 @@ export function clearSession() {
   }
 }
 
-async function authRequest(path: string, body: Record<string, unknown>) {
+async function authRequest(path: string, body: Record<string, unknown>, redirectTo?: string) {
   const { url, key } = config();
-  const response = await fetch(url + '/auth/v1/' + path, {
+  const endpoint = url + '/auth/v1/' + path + (redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : '');
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { apikey: key, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -136,7 +137,8 @@ export async function completePasswordReset(accessToken: string, password: strin
 }
 
 export async function signUp(email: string, password: string) {
-  const data = await authRequest('signup', { email, password });
+  const confirmationRedirect = typeof window !== 'undefined' ? new URL('/login', window.location.origin).toString() : undefined;
+  const data = await authRequest('signup', { email, password }, confirmationRedirect);
   if (data.access_token && data.refresh_token) {
     const session = saveSession(data);
     try { await syncServerSession(session); }

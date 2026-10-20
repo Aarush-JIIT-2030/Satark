@@ -14,6 +14,19 @@ function response(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } });
 }
 
+
+function sameOrigin(request: Request) {
+  // This endpoint is a browser session boundary. Do not allow a cross-site page to
+  // mint or clear authentication cookies. Reject absent/malformed Origin as well.
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
+}
+
 function configured() {
   const raw = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -40,6 +53,7 @@ async function verify(accessToken: string) {
 }
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return response({ error: 'Cross-origin session requests are not allowed.' }, 403);
   const config = configured();
   if (!config) return response({ error: 'Authentication is not configured.' }, 503);
   const parsed = await readBoundedJson(request, MAX_SESSION_BODY_BYTES);
@@ -64,6 +78,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!sameOrigin(request)) return response({ error: 'Cross-origin session requests are not allowed.' }, 403);
   const result = response({ ok: true });
   const secure = new URL(request.url).protocol === 'https:';
   result.cookies.set('satark-access', '', { httpOnly: true, secure, sameSite: 'lax', path: '/', maxAge: 0 });
