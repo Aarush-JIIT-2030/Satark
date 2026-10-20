@@ -4,7 +4,7 @@ Last verified: 2026-10-20 UTC (read-only migration and index checks refreshed)
 
 ## Scope and evidence
 
-Official CLI reference: [Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations).
+Official CLI reference: [Supabase migration repair](https://supabase.com/docs/reference/cli/supabase-migration-repair).
 
 The shared Supabase project `nihdhoom` (`igqgtlmnwssjaoxkkzbm`) hosts SATARK alongside Nirdhoom and Saathi. Do not reset it or run a broad `supabase db push` to resolve this mismatch.
 
