@@ -38,9 +38,11 @@ test('rejects invalid limits and malformed length headers', async () => {
   assert.deepEqual(await readBoundedResponseText(response, 8), { ok: false, reason: 'unreadable' });
 });
 
-test('FIRSTLIGHT proxy applies the byte limit before parsing the upstream response', async () => {
+test('FIRSTLIGHT proxy bounds both authentication and investigation responses', async () => {
   const source = await readFile(new URL('../src/app/api/firstlight/investigate/route.ts', import.meta.url), 'utf8');
   assert.match(source, /readBoundedResponseText\(response,\s*MAX_BODY_BYTES\)/);
   assert.match(source, /MAX_BODY_BYTES\s*=\s*2\s*\*\s*1024\s*\*\s*1024/);
-  assert.doesNotMatch(source, /await\s+response\.text\(\)/);
+  assert.match(source, /readBoundedResponseText\(response,\s*MAX_AUTH_RESPONSE_BYTES\)/);
+  assert.match(source, /MAX_AUTH_RESPONSE_BYTES\s*=\s*16\s*\*\s*1024/);
+  assert.doesNotMatch(source, /await\s+response\.(?:text|json)\(\)/);
 });
