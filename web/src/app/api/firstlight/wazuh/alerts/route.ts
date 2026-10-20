@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,7 +47,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id) ? user.id : null;
   } catch { return null; }
 }
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
     });
     if (membership.status === 401 || membership.status === 403) return reply({ error: 'Workspace access could not be verified.' }, 403);
     if (!membership.ok) return reply({ error: 'Workspace authorization is temporarily unavailable.' }, 503);
-    const rows: unknown = await membership.json();
+    const rows: unknown = await readBoundedResponseJson(membership);
     if (!Array.isArray(rows) || rows.length === 0) return reply({ error: 'An analyst, responder, or owner role in this workspace is required.' }, 403);
   } catch {
     return reply({ error: 'Workspace authorization is temporarily unavailable.' }, 503);
