@@ -166,12 +166,13 @@ test('cross-tenant evidence, findings, reports, case updates and deletes are den
     [b, env.SATARK_TEST_TENANT_A_ID, a],
   ]) {
     const ownCases = await rest(foreignSession, 'satark_cases?' + new URLSearchParams({
-      select: 'id,tenant_id', tenant_id: 'eq.' + foreignTenant, order: 'created_at.asc', limit: '1',
+      select: 'id,tenant_id,title', tenant_id: 'eq.' + foreignTenant, order: 'created_at.asc', limit: '1',
     }));
     assert.equal(ownCases.status, 200, 'fixture owner must be able to query its tenant cases');
     const foreignCases = await ownCases.json();
     assert.ok(foreignCases.length > 0, 'each tenant fixture must contain one disposable case');
     const foreignCaseId = foreignCases[0].id;
+    const originalTitle = foreignCases[0].title;
 
     const update = await rest(session, 'satark_cases?' + new URLSearchParams({
       id: 'eq.' + foreignCaseId, tenant_id: 'eq.' + foreignTenant,
@@ -184,13 +185,30 @@ test('cross-tenant evidence, findings, reports, case updates and deletes are den
       // Explicit database denial is acceptable.
     } else {
       assert.equal(update.status, 200, 'RLS-filtered cross-tenant update should return an empty success');
-      assert.deepEqual(await update.json(), [], 'cross-tenant update must not return or modify a row');
+      assert.deepEqual(await update.json(), [], 'cross-tenant update must not return a row');
     }
 
     const remove = await rest(session, 'satark_cases?' + new URLSearchParams({
       id: 'eq.' + foreignCaseId, tenant_id: 'eq.' + foreignTenant,
     }), { method: 'DELETE', headers: { Prefer: 'return=representation' } });
-    assert.ok([401, 403].includes(remove.status), 'case deletion must be denied by table grants/RLS');
+    if ([401, 403].includes(remove.status)) {
+      // Explicit database denial is acceptable.
+    } else {
+      assert.ok([200, 204].includes(remove.status), 'RLS-filtered cross-tenant delete must not return a server error');
+      if (remove.status === 200) {
+        assert.deepEqual(await remove.json(), [], 'cross-tenant delete must not return a deleted row');
+      }
+    }
+
+    // Do not treat a filtered/no-content response as proof by itself: verify
+    // through the tenant owner that the original row still exists unchanged.
+    const verifyOriginal = await rest(foreignSession, 'satark_cases?' + new URLSearchParams({
+      select: 'id,title', id: 'eq.' + foreignCaseId, tenant_id: 'eq.' + foreignTenant,
+    }));
+    assert.equal(verifyOriginal.status, 200, 'tenant owner must be able to verify the fixture');
+    const originalRows = await verifyOriginal.json();
+    assert.equal(originalRows.length, 1, 'cross-tenant delete must not remove the other tenant case');
+    assert.equal(originalRows[0].title, originalTitle, 'cross-tenant update must not change the other tenant case');
 
     const hash = 'a'.repeat(64);
     const attempts = [
