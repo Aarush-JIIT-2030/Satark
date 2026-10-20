@@ -62,7 +62,7 @@ test('tenant RLS blocks cross-tenant reads and writes for two distinct users', {
     // Tenant isolation applies to every persisted investigation resource, not
     // only the parent case table. Query each resource directly so this test
     // exercises database RLS rather than relying on frontend/API filtering.
-    for (const table of ['satark_evidence', 'satark_findings', 'satark_reports']) {
+    for (const table of ['satark_evidence', 'satark_findings', 'satark_reports', 'satark_case_notes', 'satark_approvals', 'satark_investigation_jobs']) {
       const resourceQuery = new URLSearchParams({
         select: 'id,tenant_id',
         tenant_id: 'eq.' + foreignTenant,
@@ -262,6 +262,39 @@ test('viewer role cannot create or update cases', {
   const rows = await listed.json();
   assert.ok(rows.length > 0, 'seed the dedicated viewer tenant with at least one disposable test case so update authorization is exercised');
 
+  const viewerCaseId = rows[0].id;
+  const hash = 'c'.repeat(64);
+  const viewerWrites = [
+    ['satark_case_notes', {
+      tenant_id: tenantId, case_id: viewerCaseId,
+      body: 'Viewer write probe must not persist', created_by: viewer.userId,
+    }],
+    ['satark_approvals', {
+      tenant_id: tenantId, case_id: viewerCaseId,
+      action_key: 'simulation.viewer_write_probe',
+      action_payload: { mode: 'simulation', test_probe: true },
+      payload_sha256: hash, status: 'pending', requested_by: viewer.userId,
+    }],
+    ['satark_investigation_jobs', {
+      tenant_id: tenantId, case_id: viewerCaseId,
+      requested_by: viewer.userId,
+      idempotency_key: 'viewer-write-probe-' + viewer.userId,
+      status: 'queued', attempts: 0, result: null, result_sha256: null,
+      started_at: null, finished_at: null,
+    }],
+  ];
+  for (const [table, payload] of viewerWrites) {
+    const response = await rest(viewer, table, {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(payload),
+    });
+    assert.ok(
+      [401, 403].includes(response.status),
+      'viewer writes to ' + table + ' must be denied by authorization/RLS; got HTTP ' + response.status,
+    );
+  }
+
   const update = await rest(viewer, 'satark_cases?id=eq.' + rows[0].id + '&tenant_id=eq.' + tenantId, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
@@ -352,6 +385,23 @@ test('cross-tenant evidence, findings, reports, case updates and deletes are den
         title: 'Synthetic cross-tenant probe', report_version: 1,
         snapshot: { test_probe: true }, snapshot_sha256: hash,
         created_by: session.userId,
+      }],
+      ['satark_case_notes', {
+        tenant_id: foreignTenant, case_id: foreignCaseId,
+        body: 'Synthetic cross-tenant note probe', created_by: session.userId,
+      }],
+      ['satark_approvals', {
+        tenant_id: foreignTenant, case_id: foreignCaseId,
+        action_key: 'simulation.cross_tenant_probe',
+        action_payload: { mode: 'simulation', test_probe: true },
+        payload_sha256: hash, status: 'pending', requested_by: session.userId,
+      }],
+      ['satark_investigation_jobs', {
+        tenant_id: foreignTenant, case_id: foreignCaseId,
+        requested_by: session.userId,
+        idempotency_key: 'cross-tenant-probe-' + session.userId,
+        status: 'queued', attempts: 0, result: null, result_sha256: null,
+        started_at: null, finished_at: null,
       }],
     ];
 
