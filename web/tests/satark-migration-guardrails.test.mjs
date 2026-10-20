@@ -71,7 +71,9 @@ test('audit-verification RPC keeps the exposed wrapper invoker-only', () => {
     'public audit verifier must be an invoker wrapper around the private implementation');
   assert.match(sql, /revoke\s+all\s+on\s+function\s+public\.satark_verify_audit_chain\(uuid\)\s+from\s+public,\s*anon/i);
   assert.match(sql, /grant\s+execute\s+on\s+function\s+public\.satark_verify_audit_chain\(uuid\)\s+to\s+authenticated/i);
-  assert.doesNotMatch(sql, /create\s+or\s+replace\s+function\s+public\.satark_verify_audit_chain[\s\S]*?security\s+definer/i,
+  const publicWrapper = sql.match(/create\s+or\s+replace\s+function\s+public\.satark_verify_audit_chain[\s\S]*?\$function\$;/i)?.[0];
+  assert.ok(publicWrapper, 'public audit wrapper definition must be present');
+  assert.doesNotMatch(publicWrapper, /security\s+definer/i,
     'exposed audit RPC must not be SECURITY DEFINER');
 });
 
@@ -89,6 +91,8 @@ test('tenant-creation RPC preserves authenticated ownership and an invoker-only 
     'public tenant creator must be an invoker wrapper');
   assert.match(sql, /revoke\s+all\s+on\s+function\s+public\.satark_create_tenant\(text\)\s+from\s+public,\s*anon/i);
   assert.match(sql, /grant\s+execute\s+on\s+function\s+public\.satark_create_tenant\(text\)\s+to\s+authenticated/i);
-  assert.doesNotMatch(sql, /create\s+or\s+replace\s+function\s+public\.satark_create_tenant[\s\S]*?security\s+definer/i,
+  const publicWrapper = sql.match(/create\s+or\s+replace\s+function\s+public\.satark_create_tenant[\s\S]*?\$function\$;/i)?.[0];
+  assert.ok(publicWrapper, 'public tenant-creation wrapper definition must be present');
+  assert.doesNotMatch(publicWrapper, /security\s+definer/i,
     'exposed tenant creation RPC must not be SECURITY DEFINER');
 });
