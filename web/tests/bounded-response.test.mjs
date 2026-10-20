@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { readBoundedResponseText } from '../src/lib/read-bounded-response.mjs';
 
-test('accepts a response exactly at the byte limit', async () => {
-  const response = new Response('1234', { headers: { 'content-length': '4' } });
-  assert.deepEqual(await readBoundedResponseText(response, 4), { ok: true, text: '1234' });
+test('accepts a response exactly at the UTF-8 byte limit', async () => {
+  assert.deepEqual(await readBoundedResponseText(new Response('🛡️'), 7), { ok: true, text: '🛡️' });
 });
 
 test('rejects an oversized declared response before reading its body', async () => {
@@ -25,8 +24,7 @@ test('enforces the streamed byte limit when content-length is absent', async () 
 });
 
 test('counts UTF-8 bytes rather than JavaScript characters', async () => {
-  assert.deepEqual(await readBoundedResponseText(new Response('🛡️'), 8), { ok: true, text: '🛡️' });
-  assert.deepEqual(await readBoundedResponseText(new Response('🛡️'), 7), { ok: false, reason: 'too_large' });
+  assert.deepEqual(await readBoundedResponseText(new Response('🛡️'), 6), { ok: false, reason: 'too_large' });
 });
 
 test('rejects malformed UTF-8 rather than returning corrupted text', async () => {
