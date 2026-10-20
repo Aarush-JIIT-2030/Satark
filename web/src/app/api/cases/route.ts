@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) return null;
     return { id: user.id };
   } catch {
@@ -129,7 +130,7 @@ export async function GET(request: Request) {
     const response = await supabaseRequest(config, token, 'satark_cases?' + query.toString());
     if (response.status === 401 || response.status === 403) return jsonError('You do not have access to these cases.', 403);
     if (!response.ok) return jsonError('Case storage is temporarily unavailable.', 503);
-    const data: unknown = await response.json();
+    const data: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(data)) return jsonError('Case storage returned an invalid response.', 502);
     return NextResponse.json({ cases: data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return jsonError('You do not have permission to create cases in this tenant.', 403);
     if (!response.ok) return jsonError('Case could not be saved. Verify tenant membership and try again.', 422);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) return jsonError('Case storage returned an invalid response.', 502);
     return NextResponse.json({ case: rows[0] }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch {
@@ -229,7 +230,7 @@ export async function PATCH(request: Request) {
     });
     const currentRoleResponse = await supabaseRequest(config, token, 'satark_memberships?' + currentRoleQuery.toString());
     if (!currentRoleResponse.ok) return jsonError('Assignment permissions could not be verified.', 503);
-    const currentRoles: unknown = await currentRoleResponse.json();
+    const currentRoles: unknown = await readBoundedResponseJson(currentRoleResponse);
     if (!Array.isArray(currentRoles) || currentRoles.length === 0) return jsonError('Only workspace owners or responders can assign cases.', 403);
     if (typeof input.assigned_to === 'string') {
       const targetResponse = await supabaseRequest(config, token, 'rpc/satark_list_assignable_members', {
@@ -237,7 +238,7 @@ export async function PATCH(request: Request) {
       });
       if (targetResponse.status === 401 || targetResponse.status === 403) return jsonError('Only owners or responders may assign cases.', 403);
       if (!targetResponse.ok) return jsonError('Assignee membership could not be verified.', 503);
-      const targetRows: unknown = await targetResponse.json();
+      const targetRows: unknown = await readBoundedResponseJson(targetResponse);
       if (!Array.isArray(targetRows) || !targetRows.some(row => !!row && typeof row === 'object' && 'user_id' in row && row.user_id === input.assigned_to)) {
         return jsonError('Assignee must be an owner, responder, or analyst in this workspace.', 400);
       }
@@ -253,7 +254,7 @@ export async function PATCH(request: Request) {
     });
     if (response.status === 401 || response.status === 403) return jsonError('You do not have permission to update this case.', 403);
     if (!response.ok) return jsonError('Case could not be updated. Verify workspace membership and role.', 422);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) return jsonError('Case was not found or you do not have permission to update it.', 404);
     return NextResponse.json({ case: rows[0] }, { headers: { 'Cache-Control': 'no-store' } });
   } catch { return jsonError('Case storage is temporarily unavailable.', 503); }
