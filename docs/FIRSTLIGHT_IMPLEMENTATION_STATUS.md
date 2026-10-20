@@ -161,6 +161,14 @@ This status describes repository-backed behavior and explicitly lists external c
 
 **Still blocked from a genuine end-to-end release:** no authorized Wazuh Indexer endpoint/credentials or enrolled lab agent is configured; the live shared project has no SATARK tenant/case/member/actor records; real Supabase tenant-isolation tests need dedicated least-privilege test identities; Vercel's deployment quota currently blocks a fresh deploy and the production SHA is older than main. No evidence-object backup/restore drill, real Wazuh-to-UI smoke test, or real response executor has been verified. Keep live response disabled and do not mark this branch production-ready.
 
+## Follow-up hardening verified in source and shared schema (2026-10-20)
+
+- Durable approval records are constrained to the `simulation.*` action namespace and `action_payload.mode = 'simulation'`. RLS/FORCE RLS, member-read/request policies, immutable request parameters, non-self-approval, expiry checks, one-time consumption, and transactional hash-chain audit entries are present. Read-only live inspection found zero approval rows and no non-simulation approval rows.
+- Approval migration filenames were reconciled with the live history versions `20261020035814`, `20261020035832`, `20261020035848`, and `20261020040028`. The trigger-only approval guard function no longer grants EXECUTE to `anon`, `authenticated`, or `service_role`.
+- The approval API accepts only the explicit simulation action namespace and requires a simulation-mode payload before persistence. No live endpoint action is enabled by these approval records.
+- The FIRSTLIGHT worker image includes the deterministic engine and versioned rule registry imported at runtime. Worker exceptions are reduced to stable error categories so provider exception text, URLs, and credentials are not copied into logs/checkpoints; regression coverage exercises secret-bearing exceptions.
+- Local Compose wires optional Ollama configuration through `OLLAMA_BASE_URL` and `FIRSTLIGHT_OLLAMA_MODEL`, with `FIRSTLIGHT_MODEL_AGENTS_ENABLED=false` by default. Model assistance remains advisory and is not required for deterministic findings.
+
 ## Latest verification and remaining live gate (2026-10-20)
 
 - PR #173 is merged: successful empty Wazuh polling windows advance the durable checkpoint to the completed query-window boundary; failed polls preserve the previous cursor. Its FIRSTLIGHT API tests, CodeQL, web validation, and browser/accessibility smoke passed.
