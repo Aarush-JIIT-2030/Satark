@@ -475,6 +475,7 @@ Contributions are welcome, especially focused improvements to reliability, acces
 - [Analysis limitations](docs/ANALYSIS_LIMITATIONS.md)
 - [UI design notes](docs/UI_DESIGN.md)
 - [Release readiness and deployment sign-off](docs/RELEASE_READINESS.md)
+- [Dedicated Supabase tenant-isolation test setup](docs/SUPABASE_TENANT_TEST_SETUP.md)
 - [Free API setup and optional threat-intelligence lookups](docs/FREE_API_SETUP.md)
 - [FIRSTLIGHT live-response adapter scope and prerequisites](docs/FIRSTLIGHT_LIVE_RESPONSE.md)
 - [Security policy](SECURITY.md)
