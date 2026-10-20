@@ -31,6 +31,7 @@ This document separates a working hackathon demonstration from a service that is
 - SATARK is a triage aid; scores are not calibrated probabilities, and results do not prove that content is safe or malicious.
 - FIRSTLIGHT response actions are simulated. Its in-session audit chain is not durable, independently anchored evidence storage or certified chain of custody.
 - Session state is not authenticated case storage and is not tenant isolation. The analysis limiter is process-local; it is not a durable or distributed abuse-control boundary.
+- Browser access and refresh tokens are currently retained in localStorage by `web/src/lib/satark-auth.ts`, making them readable to injected JavaScript. Do not use this design for sensitive or regulated incident evidence until a server-managed HttpOnly-cookie session is implemented or the residual XSS/session-theft risk is explicitly reviewed and accepted.
 - URL fetching uses validated public DNS results, pinned connections and redirect revalidation, but public URL retrieval still requires outbound network restrictions at the hosting layer.
 - Upload limits bound input size, but do not guarantee a fixed memory/CPU budget under concurrent workloads.
 - Content submitted for AI analysis may leave the host and be processed by the configured provider. Do not submit credentials, OTPs, private keys or sensitive incident data unless the provider and legal basis have been reviewed.
