@@ -198,3 +198,57 @@ def test_wazuh_retry_backoff_is_exponential_and_capped():
         _retry_delay(0, 1)
     with pytest.raises(ValueError):
         _retry_delay(30, 0)
+
+def test_worker_revalidates_actor_membership_before_each_poll():
+    class RevocableMembershipRest(FakeRest):
+        def __init__(self):
+            super().__init__()
+            self.membership_allowed = True
+
+        def request(self, method, table, *, query=None, body=None, prefer=None):
+            if method == "GET" and table == "satark_memberships" and not self.membership_allowed:
+                return []
+            return super().request(method, table, query=query, body=body, prefer=prefer)
+
+    rest = RevocableMembershipRest()
+    wazuh = FakeWazuh([])
+    worker = WazuhSupabaseWorker(
+        rest=rest, wazuh=wazuh, tenant_id=TENANT, case_id=CASE, actor_id=ACTOR,
+        initial_since="2026-10-20T07:00:00Z",
+    )
+    # The worker was valid at process startup, but the actor is removed later.
+    rest.membership_allowed = False
+    with pytest.raises(ValueError, match="actor"):
+        worker.run_once()
+    assert wazuh.calls == []
+    assert rest.checkpoint is None
+
+def test_worker_does_not_persist_a_page_if_membership_is_revoked_during_fetch():
+    class RevocableMembershipRest(FakeRest):
+        def __init__(self):
+            super().__init__()
+            self.membership_allowed = True
+
+        def request(self, method, table, *, query=None, body=None, prefer=None):
+            if method == "GET" and table == "satark_memberships" and not self.membership_allowed:
+                return []
+            return super().request(method, table, query=query, body=body, prefer=prefer)
+
+    rest = RevocableMembershipRest()
+
+    class RevokingWazuh(FakeWazuh):
+        def fetch_alerts(self, **kwargs):
+            page = super().fetch_alerts(**kwargs)
+            rest.membership_allowed = False
+            return page
+
+    worker = WazuhSupabaseWorker(
+        rest=rest, wazuh=RevokingWazuh([event("revoked-during-fetch", "2026-10-20T07:01:00Z")]),
+        tenant_id=TENANT, case_id=CASE, actor_id=ACTOR,
+        initial_since="2026-10-20T07:00:00Z",
+    )
+    with pytest.raises(ValueError, match="actor"):
+        worker.run_once()
+    assert rest.evidence == {}
+    assert rest.checkpoint is None
+
