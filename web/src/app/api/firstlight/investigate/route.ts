@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server';
+import { readBoundedResponseText } from '@/lib/read-bounded-response.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_AUTH_RESPONSE_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isInvestigationResponse(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || typeof value.schema_version !== 'string' || typeof value.case_id !== 'string') return false;
+  if (!Array.isArray(value.integrity) || !isRecord(value.integrity_summary)) return false;
+  const summary = value.integrity_summary;
+  if (!['total', 'verified', 'mismatched'].every((key) =>
+    typeof summary[key] === 'number' && Number.isFinite(summary[key]))) return false;
+  if (!isRecord(value.investigation) || !isRecord(value.agent_analysis)) return false;
+  return Array.isArray(value.limitations) && value.limitations.every((item) => typeof item === 'string');
 }
 
 function authConfig() {
@@ -33,8 +49,10 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) return false;
-    const user: unknown = await response.json();
-    return !!user && typeof user === 'object' && 'id' in user && typeof user.id === 'string' && UUID.test(user.id);
+    const bounded = await readBoundedResponseText(response, MAX_AUTH_RESPONSE_BYTES);
+    if (!bounded.ok) return false;
+    const user: unknown = JSON.parse(bounded.text);
+    return isRecord(user) && typeof user.id === 'string' && UUID.test(user.id);
   } catch { return false; }
 }
 
@@ -76,7 +94,7 @@ export async function POST(request: Request) {
   let input: unknown;
   const reader = request.body?.getReader();
   if (!reader) return reply({ error: 'A valid JSON request is required.' }, 400);
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let totalBytes = 0;
   try {
     while (true) {
@@ -94,11 +112,11 @@ export async function POST(request: Request) {
     raw += decoder.decode();
     input = JSON.parse(raw);
   } catch {
-    return reply({ error: 'A valid JSON request is required.' }, 400);
+    return reply({ error: 'A valid UTF-8 JSON request is required.' }, 400);
   } finally {
     reader.releaseLock();
   }
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return reply({ error: 'A JSON object is required.' }, 400);
+  if (!isRecord(input)) return reply({ error: 'A JSON object is required.' }, 400);
 
   try {
     const response = await fetch(config.baseUrl + '/api/v1/cases/investigate', {
@@ -106,23 +124,31 @@ export async function POST(request: Request) {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ...(config.token ? { Authorization: 'Bearer ' + config.token } : {}),
+        Authorization: 'Bearer ' + config.token,
       },
       body: raw,
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(12_000),
     });
-    const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return reply({ error: 'Investigation service returned an oversized response.' }, 502);
+    const bounded = await readBoundedResponseText(response, MAX_BODY_BYTES);
+    if (!bounded.ok) {
+      return reply({
+        error: bounded.reason === 'too_large'
+          ? 'Investigation service returned an oversized response.'
+          : 'Investigation service returned an unreadable response.',
+      }, 502);
+    }
     let payload: unknown;
-    try { payload = JSON.parse(text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
+    try { payload = JSON.parse(bounded.text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
+    if (!isRecord(payload)) return reply({ error: 'Investigation service returned an invalid response.' }, 502);
     if (!response.ok) {
-      const message = payload && typeof payload === 'object' && 'detail' in payload && typeof payload.detail === 'string'
+      const message = typeof payload.detail === 'string'
         ? payload.detail
         : 'The shared investigation service could not process this case.';
       return reply({ error: message }, response.status >= 400 && response.status < 500 ? response.status : 503);
     }
+    if (!isInvestigationResponse(payload)) return reply({ error: 'Investigation service returned an invalid response.' }, 502);
     return reply(payload);
   } catch {
     return reply({ error: 'The shared FIRSTLIGHT API is unreachable. Local deterministic findings remain available.' }, 503);

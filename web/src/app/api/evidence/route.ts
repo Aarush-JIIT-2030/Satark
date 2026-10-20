@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
+import { readBoundedBody } from '@/lib/read-bounded-json';
 import { inspectEvidenceFile } from '@/lib/evidence-signature.mjs';
 import { NextResponse } from 'next/server';
 
@@ -37,7 +39,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', redirect: 'error', signal: controller.signal,
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) return null;
     return { id: user.id };
   } catch { return null; }
@@ -52,12 +54,26 @@ export async function POST(request: Request) {
   const user = await authenticate(token, config);
   if (!user) return error('Your session is invalid or expired.', 401);
 
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > MAX_FILE_BYTES + 64 * 1024) return error('File exceeds the 4 MiB upload limit.', 413);
+  const contentEncoding = request.headers.get('content-encoding');
+  if (contentEncoding && contentEncoding.toLowerCase() !== 'identity') {
+    return error('Compressed multipart uploads are not supported.', 415);
+  }
+  const boundedBody = await readBoundedBody(request, MAX_FILE_BYTES + 64 * 1024);
+  if (!boundedBody.ok) return error(boundedBody.error, boundedBody.status);
 
+  // Parse only the already-bounded bytes. Request.formData() on the original
+  // request would buffer an unbounded chunked body before file.size is checked.
+  const boundedHeaders = new Headers(request.headers);
+  boundedHeaders.delete('content-length');
+  boundedHeaders.delete('transfer-encoding');
   let form: FormData;
-  try { form = await request.formData(); }
-  catch { return error('A multipart file upload is required.', 400); }
+  try {
+    form = await new Request(request.url, {
+      method: 'POST',
+      headers: boundedHeaders,
+      body: Buffer.from(boundedBody.bytes),
+    }).formData();
+  } catch { return error('A multipart file upload is required.', 400); }
 
   const file = form.get('file');
   const tenantId = String(form.get('tenant_id') || '');
@@ -130,7 +146,7 @@ export async function POST(request: Request) {
       // can reconcile orphaned uploads through the documented retention process.
       return error('The private file was uploaded but its evidence record could not be saved. Contact an administrator with request time.', 503);
     }
-    const rows: unknown = await saved.json();
+    const rows: unknown = await readBoundedResponseJson(saved);
     if (!Array.isArray(rows) || !rows[0]) return error('Evidence storage returned an invalid response.', 502);
     return NextResponse.json({ evidence: rows[0], integrity: { algorithm: 'SHA-256', source_sha256: sourceSha256, record_sha256: recordSha256 } }, {
       status: 201, headers: { 'Cache-Control': 'no-store' },

@@ -47,6 +47,22 @@ test('shared limiter uses atomic Redis script and enforces the global counter', 
   assert.equal(captured.body[4], '60000');
 });
 
+test('shared limiter fails closed on oversized upstream responses', async () => {
+  const limiter = createRateLimiter({
+    env: { UPSTASH_REDIS_REST_URL: 'https://redis.example.com', UPSTASH_REDIS_REST_TOKEN: 'test-token' },
+    fetcher: async () => new Response('x'.repeat(20 * 1024), { status: 200 }),
+  });
+  assert.deepEqual(await limiter(request()), { limited: false, unavailable: true, mode: 'shared' });
+});
+
+test('shared limiter fails closed on malformed upstream JSON', async () => {
+  const limiter = createRateLimiter({
+    env: { UPSTASH_REDIS_REST_URL: 'https://redis.example.com', UPSTASH_REDIS_REST_TOKEN: 'test-token' },
+    fetcher: async () => new Response('not-json', { status: 200 }),
+  });
+  assert.deepEqual(await limiter(request()), { limited: false, unavailable: true, mode: 'shared' });
+});
+
 test('configured shared limiter fails closed on outage and never falls back to local', async () => {
   const limiter = createRateLimiter({
     env: { UPSTASH_REDIS_REST_URL: 'https://redis.example.com', UPSTASH_REDIS_REST_TOKEN: 'test-token' },

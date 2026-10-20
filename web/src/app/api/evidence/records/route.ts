@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { NextResponse } from 'next/server';
 import { readBoundedJson } from '@/lib/read-bounded-json';
 
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   let userId: string;
   try {
     const auth = await fetch(cfg.url + '/auth/v1/user', { headers: { apikey: cfg.key, Authorization: 'Bearer ' + token }, cache: 'no-store', signal: controller.signal });
-    const value: unknown = auth.ok ? await auth.json() : null;
+    const value: unknown = auth.ok ? await readBoundedResponseJson(auth) : null;
     if (!value || typeof value !== 'object' || !('id' in value) || typeof value.id !== 'string' || !UUID.test(value.id)) return reply({ error: 'Your session is invalid or expired.' }, 401);
     userId = value.id;
   } catch { return reply({ error: 'Authentication service is temporarily unavailable.' }, 503); }
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
     if (response.status === 401 || response.status === 403) return reply({ error: 'You do not have permission to add evidence to this case.' }, 403);
     if (response.status === 409) return reply({ error: 'This evidence record already exists.' }, 409);
     if (!response.ok) return reply({ error: 'Evidence record could not be saved. Check case access and retry.' }, 422);
-    const rows: unknown = await response.json();
+    const rows: unknown = await readBoundedResponseJson(response);
     if (!Array.isArray(rows) || !rows[0]) return reply({ error: 'Evidence storage returned an invalid response.' }, 502);
     return reply({ evidence: rows[0], record_sha256: recordSha }, 201);
   } catch { return reply({ error: 'Evidence storage is temporarily unavailable.' }, 503); }

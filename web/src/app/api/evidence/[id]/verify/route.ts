@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -28,7 +29,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', signal: controller.signal,
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) return null;
     return user.id;
   } catch { return null; }
@@ -54,7 +55,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const lookup = await fetch(config.url + '/rest/v1/satark_evidence?' + query, { headers, cache: 'no-store', signal: AbortSignal.timeout(8_000) });
     if (lookup.status === 401 || lookup.status === 403) return reply({ error: 'You do not have access to this evidence.' }, 403);
     if (!lookup.ok) return reply({ error: 'Evidence metadata is temporarily unavailable.' }, 503);
-    const rows: unknown = await lookup.json();
+    const rows: unknown = await readBoundedResponseJson(lookup);
     if (!Array.isArray(rows) || !rows[0]) return reply({ error: 'Evidence was not found.' }, 404);
     const row = rows[0] as { id:string; tenant_id:string; case_id:string; source_sha256:string|null; record_sha256:string; created_by:string; metadata:Record<string,unknown> };
     const objectKey = row.metadata?.object_key;

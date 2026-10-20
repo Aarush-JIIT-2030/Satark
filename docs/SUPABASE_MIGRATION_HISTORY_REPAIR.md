@@ -25,6 +25,17 @@ The live private helper, ACLs, and final storage policies have been verified rea
 
 The live SATARK tenant, membership, case, evidence, finding, report, audit-event, ingestion-checkpoint, investigation-job, case-note and approval tables currently contain zero rows. Do not add fake production rows to test the application.
 
+## Security-advisor status (read-only check, 2026-10-20)
+
+The two RPCs previously reported as exposed `SECURITY DEFINER` functions are hardened in the live shared database, and their migration files are tracked in this branch:
+
+- `20261018114205_harden_satark_audit_verification_rpc`: the public `satark_verify_audit_chain(uuid)` function is a `SECURITY INVOKER` wrapper; the private implementation uses an empty fixed `search_path` and checks membership in the requested tenant.
+- `20261018114247_harden_satark_tenant_creation_rpc`: the public `satark_create_tenant(text)` function is a `SECURITY INVOKER` wrapper; the private implementation derives the owner from `auth.uid()`, validates the name, creates the owner membership, and appends the audit event atomically.
+
+Read-only privilege checks confirmed that authenticated callers can execute the public wrappers, anonymous callers cannot, and both private implementations use an empty fixed `search_path`. The latest shared-project security-advisor response did not include these two wrappers. The clean-database suite now includes `supabase/tests/satark_rpc_hardening.test.sql`, which verifies invoker-only public wrappers, anonymous denial, authenticated tenant creation, owner-membership creation, valid audit-chain verification, blank-name rejection, and cross-tenant audit-verification denial in a rollback transaction.
+
+This does **not** mean the shared multi-application project's entire security-advisor output is clean. The read-only shared-project check reported 13 authenticated `SECURITY DEFINER` RPC findings, including four SATARK approval/assignable-member RPCs and functions belonging to other applications. Migration `20261020052000_satark_private_approval_rpc_implementations` moves those four SATARK implementations into `satark_private` behind `SECURITY INVOKER` public wrappers, preserving authenticated behavior while keeping a fixed empty `search_path` on the private implementations. The four findings should disappear from the public-schema advisor results after that migration is applied and verified; until then, the shared database still has the pre-migration functions. The remaining warnings belong to other applications sharing the database and require separate behavior-preserving review; do not blanket-revoke them or modify Nirdhoom/Saathi functions as part of this SATARK repair. The live PostgREST suite contains guard checks for owner-only assignable-member listing, cross-tenant denial, pending approvals not authorizing/consuming responses, and self/cross-tenant decisions being rejected. The isolated database regression suite in `supabase/tests/satark_approvals.test.sql` exercises requester/responder/viewer/foreign-tenant cases, successful approval, exact-payload authorization, one-time consumption, replay rejection, expiry, and audit-chain integrity inside a rollback transaction. The `satark_ingestion_checkpoints` RLS informational finding was also reviewed: the table has RLS enabled/forced and no grants to `anon` or `authenticated`, so it remains server-only.
+
 ## Required operator procedure
 
 From a trusted checkout, explicitly confirm that the linked project is `igqgtlmnwssjaoxkkzbm` before running any repair:
@@ -43,11 +54,10 @@ After repair, confirm that versions `202610200004`, `20261018114039`, `202610200
 supabase db push --dry-run --linked
 ```
 
-**Expected dry-run after the isolated approval-RPC hardening migration is merged:** exactly these three pending repository migrations, in version order:
+**Expected dry-run after PR #174 and the current SATARK hardening branch:** exactly these three pending repository migrations, in version order:
 1. `20261020050000_satark_foreign_key_support_indexes.sql` — creates the five SATARK support indexes.
 2. `20261020051000_satark_rebind_membership_policies.sql` — rebinds six SATARK RLS policies from the revoked public wrapper to the private membership helper.
-
-3. `20261020052000_satark_private_approval_rpc_implementations.sql` — moves four privileged implementations into `satark_private` and keeps the public RPC wrappers as `SECURITY INVOKER`.
+3. `20261020052000_satark_private_approval_rpc_implementations.sql` — moves four authenticated approval/assignable-member SECURITY DEFINER implementations behind private-schema functions while preserving public SECURITY INVOKER RPC wrappers.
 
 If any other migration is listed, stop and reconcile the migration set before applying anything. Do not execute the repair or push commands unless the linked project is confirmed as `igqgtlmnwssjaoxkkzbm` and the dry-run matches exactly. If it matches, apply the three pending SATARK-only migrations and verify the resulting history:
 
@@ -56,7 +66,7 @@ supabase db push --linked
 supabase migration list --linked
 ```
 
-Then verify the four public approval/assignment RPCs are `SECURITY INVOKER`, their private implementations have a fixed empty `search_path`, and anonymous callers cannot execute the private functions. Verify all five index names exist in `pg_indexes`:
+Then verify all five index names exist in `pg_indexes`:
 `satark_approvals_requested_by_idx`, `satark_approvals_decided_by_idx`, `satark_case_notes_created_by_idx`, `satark_cases_assigned_to_idx`, and `satark_investigation_jobs_requested_by_idx`. Also re-check that the six affected policies call `satark_private.has_membership` and that authenticated/anon cannot execute `public.satark_has_membership`. Run the isolated migration validation workflow after the live repair. Do not run a broad push if the dry-run differs from the expected three migrations.
 
 ## Read-only policy and ACL verification
@@ -64,7 +74,7 @@ Then verify the four public approval/assignment RPCs are `SECURITY INVOKER`, the
 ```sql
 select version, name
 from supabase_migrations.schema_migrations
-where version in ('20261018114039', '202610200004', '20261020042000', '20261020042449', '20261020044018')
+where version in ('20261018114039', '202610200004', '20261020042000', '20261020042449', '20261020044018', '20261020050000', '20261020051000', '20261020052000')
 order by version;
 
 select policyname, cmd, roles, qual, with_check
