@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   let input: unknown;
   const reader = request.body?.getReader();
   if (!reader) return reply({ error: 'A valid JSON request is required.' }, 400);
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let totalBytes = 0;
   try {
     while (true) {
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     raw += decoder.decode();
     input = JSON.parse(raw);
   } catch {
-    return reply({ error: 'A valid JSON request is required.' }, 400);
+    return reply({ error: 'A valid UTF-8 JSON request is required.' }, 400);
   } finally {
     reader.releaseLock();
   }
@@ -127,8 +127,11 @@ export async function POST(request: Request) {
     }
     let payload: unknown;
     try { payload = JSON.parse(bounded.text); } catch { return reply({ error: 'Investigation service returned an invalid response.' }, 502); }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return reply({ error: 'Investigation service returned an invalid response.' }, 502);
+    }
     if (!response.ok) {
-      const message = payload && typeof payload === 'object' && 'detail' in payload && typeof payload.detail === 'string'
+      const message = 'detail' in payload && typeof payload.detail === 'string'
         ? payload.detail
         : 'The shared investigation service could not process this case.';
       return reply({ error: message }, response.status >= 400 && response.status < 500 ? response.status : 503);
