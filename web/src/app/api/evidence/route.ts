@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readBoundedResponseJson } from '@/lib/read-bounded-response-json';
 import { inspectEvidenceFile } from '@/lib/evidence-signature.mjs';
 import { NextResponse } from 'next/server';
 
@@ -37,7 +38,7 @@ async function authenticate(token: string, config: NonNullable<ReturnType<typeof
       cache: 'no-store', redirect: 'error', signal: controller.signal,
     });
     if (!response.ok) return null;
-    const user: unknown = await response.json();
+    const user: unknown = await readBoundedResponseJson(response);
     if (!user || typeof user !== 'object' || !('id' in user) || typeof user.id !== 'string' || !UUID.test(user.id)) return null;
     return { id: user.id };
   } catch { return null; }
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
       // can reconcile orphaned uploads through the documented retention process.
       return error('The private file was uploaded but its evidence record could not be saved. Contact an administrator with request time.', 503);
     }
-    const rows: unknown = await saved.json();
+    const rows: unknown = await readBoundedResponseJson(saved);
     if (!Array.isArray(rows) || !rows[0]) return error('Evidence storage returned an invalid response.', 502);
     return NextResponse.json({ evidence: rows[0], integrity: { algorithm: 'SHA-256', source_sha256: sourceSha256, record_sha256: recordSha256 } }, {
       status: 201, headers: { 'Cache-Control': 'no-store' },
