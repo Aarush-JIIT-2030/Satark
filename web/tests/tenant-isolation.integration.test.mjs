@@ -62,7 +62,7 @@ test('tenant RLS blocks cross-tenant reads and writes for two distinct users', {
     // Tenant isolation applies to every persisted investigation resource, not
     // only the parent case table. Query each resource directly so this test
     // exercises database RLS rather than relying on frontend/API filtering.
-    for (const table of ['satark_evidence', 'satark_findings', 'satark_reports', 'satark_case_notes', 'satark_approvals', 'satark_investigation_jobs']) {
+    for (const table of ['satark_evidence', 'satark_findings', 'satark_reports', 'satark_audit_events', 'satark_case_notes', 'satark_approvals', 'satark_investigation_jobs']) {
       const resourceQuery = new URLSearchParams({
         select: 'id,tenant_id',
         tenant_id: 'eq.' + foreignTenant,
@@ -269,6 +269,11 @@ test('viewer role cannot create or update cases', {
       tenant_id: tenantId, case_id: viewerCaseId,
       body: 'Viewer write probe must not persist', created_by: viewer.userId,
     }],
+    ['satark_audit_events', {
+      tenant_id: tenantId, case_id: viewerCaseId, actor_id: viewer.userId,
+      action: 'viewer.audit_write_probe', details: { test_probe: true },
+      previous_hash: null, event_hash: hash,
+    }],
     ['satark_approvals', {
       tenant_id: tenantId, case_id: viewerCaseId,
       action_key: 'simulation.viewer_write_probe',
@@ -402,6 +407,11 @@ test('cross-tenant evidence, findings, reports, case updates and deletes are den
       ['satark_case_notes', {
         tenant_id: foreignTenant, case_id: foreignCaseId,
         body: 'Synthetic cross-tenant note probe', created_by: session.userId,
+      }],
+      ['satark_audit_events', {
+        tenant_id: foreignTenant, case_id: foreignCaseId, actor_id: session.userId,
+        action: 'integration.cross_tenant_audit_write_probe',
+        details: { test_probe: true }, previous_hash: null, event_hash: hash,
       }],
       ['satark_approvals', {
         tenant_id: foreignTenant, case_id: foreignCaseId,
