@@ -9,6 +9,14 @@ const required = [
 ];
 const missing = required.filter(key => !env[key]);
 const configured = missing.length === 0;
+const viewerRequired = [
+  'SUPABASE_URL',
+  'SUPABASE_PUBLISHABLE_KEY',
+  'SATARK_TEST_VIEWER_EMAIL',
+  'SATARK_TEST_VIEWER_PASSWORD',
+  'SATARK_TEST_VIEWER_TENANT_ID',
+];
+const viewerMissing = viewerRequired.filter(key => !env[key]);
 const base = (env.SUPABASE_URL || '').replace(/\/$/, '');
 const apiKey = env.SUPABASE_PUBLISHABLE_KEY || '';
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -224,7 +232,7 @@ test('audit verification RPC permits tenant members and denies cross-tenant acce
 });
 
 test('approval and assignable-member RPCs enforce tenant roles and fail closed', {
-  skip: configured ? false : 'Set up two non-admin Supabase test users and a viewer; missing: ' + missing.join(', '),
+  skip: configured && viewerMissing.length === 0 ? false : 'Set up two non-admin Supabase test users and a viewer; missing: ' + [...missing, ...viewerMissing].join(', '),
 }, async () => {
   const [a, b, viewer] = await Promise.all([
     login(env.SATARK_TEST_USER_A_EMAIL, env.SATARK_TEST_USER_A_PASSWORD),
@@ -355,15 +363,6 @@ test('tenant creation RPC rejects anonymous calls and invalid tenant names', {
   });
   assert.equal(invalidName.status, 400, 'authenticated tenant creation should reject a blank tenant name');
 });
-
-const viewerRequired = [
-  'SUPABASE_URL',
-  'SUPABASE_PUBLISHABLE_KEY',
-  'SATARK_TEST_VIEWER_EMAIL',
-  'SATARK_TEST_VIEWER_PASSWORD',
-  'SATARK_TEST_VIEWER_TENANT_ID',
-];
-const viewerMissing = viewerRequired.filter(key => !env[key]);
 
 // The ordinary unit-test suite may skip live integration checks when no test
 // project is configured. The dedicated integration command must never report a
